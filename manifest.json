@@ -1,0 +1,14 @@
+{
+  "name": "Enhanced Pins",
+  "description": "Enhanced pinning functionality for Spotify playlists, albums, and more",
+  "preview": "preview.png",
+  "main": "enhanced-pins.js",
+  "readme": "README.md",
+  "authors": [
+    {
+      "name": "yusufaf",
+      "url": "https://github.com/yusufaf"
+    }
+  ],
+  "tags": ["pins", "playlists", "organization", "sidebar"]
+}
