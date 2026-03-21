@@ -61,6 +61,15 @@ const TYPE_LABEL_MAP = {
   'collection': 'Audiobook'
 };
 
+/** Map sidebar filter chip labels (lowercase) to allowed pin type sets */
+const FILTER_TYPE_MAP = {
+  'playlists': new Set(['playlist', 'playlist-v2']),
+  'albums': new Set(['album']),
+  'podcasts': new Set(['show']),
+  'podcasts & shows': new Set(['show']),
+  'audiobooks': new Set(['collection']),
+};
+
 /** Spotify's native pin icon SVG path */
 const PIN_SVG_PATH = 'M8.822.797a2.72 2.72 0 0 1 3.847 0l2.534 2.533a2.72 2.72 0 0 1 0 3.848l-3.678 3.678-1.337 4.988-4.486-4.486L1.28 15.78a.75.75 0 0 1-1.06-1.06l4.422-4.422L.156 5.812l4.987-1.337z';
 
@@ -86,6 +95,12 @@ const EP_DEFAULT_CONFIG = {
   confirmUnpin: false
 };
 
+/** View mode constants */
+const VIEW_LIST = 'list';
+const VIEW_COMPACT = 'compact';
+const VIEW_GRID = 'grid';
+const VIEW_COMPACT_GRID = 'compact-grid';
+
 //#endregion
 
 //#region State
@@ -95,6 +110,9 @@ let currentPins = [];
 
 /** @type {HTMLStyleElement|null} Dynamic style element for hiding duplicates */
 let hideStyleElement = null;
+
+/** @type {string} Cached sidebar view mode */
+let cachedViewMode = VIEW_LIST;
 
 //#endregion
 
@@ -518,21 +536,22 @@ function updatePlayingStates() {
  * @returns {{ parent: HTMLElement, reference: Node|null }|null}
  */
 function findInjectionPoint() {
-  // Strategy 1: Inside libraryRootlist, before the grid
   const rootlist = document.querySelector('.main-yourLibraryX-libraryRootlist');
   if (rootlist) {
-    const gridParent = rootlist.querySelector('[role="grid"]')?.parentElement;
-    if (gridParent) {
-      return { parent: rootlist, reference: gridParent };
+    // Strategy 1: After the filter bar inside libraryRootlist
+    const filter = rootlist.querySelector('.main-yourLibraryX-libraryFilter');
+    if (filter && filter.parentElement) {
+      return { parent: filter.parentElement, reference: filter.nextElementSibling };
     }
-  }
 
-  // Strategy 2: After the filter/sort area inside library container
-  const libraryContainer = document.querySelector('.main-yourLibraryX-libraryItemContainer');
-  if (libraryContainer) {
-    const scrollArea = libraryContainer.querySelector('[data-overlayscrollbars-viewport]');
-    if (scrollArea) {
-      return { parent: scrollArea, reference: scrollArea.firstChild };
+    // Strategy 2: Before the treegrid/grid element
+    const gridEl = rootlist.querySelector('[role="treegrid"], [role="grid"]');
+    if (gridEl) {
+      let wrapper = gridEl;
+      while (wrapper.parentElement && wrapper.parentElement !== rootlist) {
+        wrapper = wrapper.parentElement;
+      }
+      return { parent: wrapper.parentElement, reference: wrapper };
     }
   }
 
@@ -540,6 +559,112 @@ function findInjectionPoint() {
   const navBar = document.querySelector(SEL_NAV_BAR);
   if (navBar) {
     return { parent: navBar, reference: null };
+  }
+
+  return null;
+}
+
+/**
+ * Detects the current sidebar library view mode.
+ * Primary: reads the combobox aria-label (e.g. "Custom order, Default grid view").
+ * Fallback: compares positions of native library items.
+ * @returns {string} VIEW_LIST, VIEW_COMPACT, VIEW_GRID, or VIEW_COMPACT_GRID
+ */
+function detectViewMode() {
+  // Strategy 1: Parse the view mode from the sort/view combobox aria-label
+  const combobox = document.querySelector('.main-yourLibraryX-libraryFilter [role="combobox"]');
+  if (combobox) {
+    const label = (combobox.getAttribute('aria-label') || '').toLowerCase();
+    if (label.includes('compact') && label.includes('grid')) {
+      cachedViewMode = VIEW_COMPACT_GRID;
+      return cachedViewMode;
+    }
+    if (label.includes('grid')) {
+      cachedViewMode = VIEW_GRID;
+      return cachedViewMode;
+    }
+    if (label.includes('compact')) {
+      cachedViewMode = VIEW_COMPACT;
+      return cachedViewMode;
+    }
+    if (label.includes('list')) {
+      cachedViewMode = VIEW_LIST;
+      return cachedViewMode;
+    }
+  }
+
+  // Strategy 2: Position-based fallback using native library items
+  const rootlist = document.querySelector('.main-yourLibraryX-libraryRootlist');
+  if (!rootlist) return cachedViewMode;
+
+  const allItems = rootlist.querySelectorAll('li[role="row"]');
+  const items = [...allItems].filter(el => !el.closest('#' + EP_CONTAINER_ID));
+  if (items.length < 2) return cachedViewMode;
+
+  const r0 = items[0].getBoundingClientRect();
+  const r1 = items[1].getBoundingClientRect();
+  if (r0.height === 0 || r1.height === 0) return cachedViewMode;
+
+  // Grid: items on the same row
+  if (Math.abs(r0.top - r1.top) < 10) {
+    let cols = 1;
+    for (let i = 1; i < Math.min(items.length, 6); i++) {
+      if (Math.abs(items[i].getBoundingClientRect().top - r0.top) < 10) cols++;
+      else break;
+    }
+    cachedViewMode = cols >= 3 ? VIEW_COMPACT_GRID : VIEW_GRID;
+    return cachedViewMode;
+  }
+
+  // Compact list: native items have no artwork images
+  if (!items[0].querySelector('img')) {
+    cachedViewMode = VIEW_COMPACT;
+    return cachedViewMode;
+  }
+
+  cachedViewMode = VIEW_LIST;
+  return cachedViewMode;
+}
+
+/**
+ * Detects the active entity type filter from sidebar filter chips.
+ * When the user selects a filter like "Audiobooks" or "Playlists", only
+ * enhanced pins of that type should be shown.
+ * @returns {Set<string>|null} Set of allowed pin types, or null if no type filter active
+ */
+function getActiveTypeFilter() {
+  // Filter chips are Encore LegacyChip components inside the sidebar nav bar,
+  // within a listbox[aria-label="Filter options"].
+  // When a type filter is active, Spotify re-renders the chip bar:
+  //   - All non-matching type chips are removed
+  //   - Only the active type chip + sub-filter chips (e.g. "Unplayed") remain
+  //   - An X/clear button appears
+  // Detection: if exactly 1 type-matching chip is present (normally 4+), it's the active filter.
+  const navBar = document.querySelector(SEL_NAV_BAR);
+  if (!navBar) return null;
+
+  const chips = navBar.querySelectorAll('[data-encore-id="chip"]');
+  if (chips.length === 0) return null;
+
+  // Strategy 1: Check for explicitly active chips via aria-checked
+  for (const chip of chips) {
+    if (chip.getAttribute('aria-checked') === 'true') {
+      const label = (chip.getAttribute('aria-label') || '').toLowerCase();
+      if (FILTER_TYPE_MAP[label]) return FILTER_TYPE_MAP[label];
+    }
+  }
+
+  // Strategy 2: Count type-matching chips. When unfiltered, multiple type chips
+  // are visible (Playlists, Podcasts, Audiobooks, Albums, etc.). When a type
+  // filter is active, only that single type chip remains.
+  const typeChips = [];
+  for (const chip of chips) {
+    const label = (chip.getAttribute('aria-label') || '').toLowerCase();
+    if (FILTER_TYPE_MAP[label]) typeChips.push(label);
+  }
+
+  if (typeChips.length === 1) {
+    return FILTER_TYPE_MAP[typeChips[0]];
   }
 
   return null;
@@ -756,30 +881,113 @@ function setupContextMenuActions() {
         hideContextMenu();
         try {
           const meta = await Spicetify.Platform.PlaylistAPI.getMetadata(pin.uri);
+          const uriObj2 = Spicetify.URI.fromString(pin.uri);
+          const playlistId = uriObj2.id || uriObj2._base62Id;
+          const currentImage = meta?.images?.[0]?.url || pin.imageUrl || '';
+          let newImageBase64 = null;
+
           const content = document.createElement('div');
           content.className = 'ep-edit-modal';
           content.innerHTML = `
-            <div style="display:flex;flex-direction:column;gap:12px;padding:8px 0;">
-              <label class="ep-edit-field">
-                <span>Name</span>
-                <input type="text" class="ep-edit-input" value="${escapeHtml(meta?.name || pin.name)}">
-              </label>
-              <label class="ep-edit-field">
-                <span>Description</span>
-                <textarea class="ep-edit-input" rows="3">${escapeHtml(meta?.description || '')}</textarea>
-              </label>
-              <button class="ep-edit-save">Save</button>
-            </div>`;
+            <div style="display:flex;gap:16px;padding:8px 0;">
+              <div class="ep-edit-image-section">
+                <div class="ep-edit-image-wrapper" title="Click to change image">
+                  ${currentImage
+                    ? `<img class="ep-edit-img-preview" src="${escapeHtml(currentImage)}" alt="">`
+                    : '<div class="ep-edit-img-preview ep-edit-img-placeholder"></div>'}
+                  <div class="ep-edit-img-overlay">
+                    <svg viewBox="0 0 24 24" width="32" height="32" fill="currentColor"><path d="M17.318 1.975a3.329 3.329 0 1 1 4.707 4.707L8.451 20.256c-.49.49-1.1.867-1.767 1.109l-4.45 1.527a.75.75 0 0 1-.94-.94l1.519-4.431c.247-.676.63-1.292 1.126-1.794zm3.646 1.061a1.829 1.829 0 0 0-2.586 0L4.804 16.61a3.5 3.5 0 0 0-.764 1.216l-.95 2.769 2.789-.955a3.5 3.5 0 0 0 1.2-.752z"></path></svg>
+                    <span>Choose photo</span>
+                  </div>
+                </div>
+                <input type="file" class="ep-edit-file-input" accept="image/jpeg,image/png,image/gif,image/webp" style="display:none;">
+              </div>
+              <div style="flex:1;display:flex;flex-direction:column;gap:12px;min-width:0;">
+                <input type="text" class="ep-edit-input" value="${escapeHtml(meta?.name || pin.name)}" placeholder="Add a name">
+                <textarea class="ep-edit-input ep-edit-textarea" rows="4" placeholder="Add an optional description">${escapeHtml(meta?.description || '')}</textarea>
+                <button class="ep-edit-save">Save</button>
+              </div>
+            </div>
+            <p class="ep-edit-disclaimer">By proceeding, you agree to give Spotify access to the image you choose to upload. Please make sure you have the right to upload the image.</p>`;
+
+          // Image picker
+          const imgWrapper = content.querySelector('.ep-edit-image-wrapper');
+          const fileInput = content.querySelector('.ep-edit-file-input');
+          imgWrapper.addEventListener('click', () => fileInput.click());
+
+          fileInput.addEventListener('change', (evt) => {
+            const file = evt.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (re) => {
+              const img = new Image();
+              img.onload = () => {
+                const canvas = document.createElement('canvas');
+                const size = 512;
+                canvas.width = size;
+                canvas.height = size;
+                const ctx = canvas.getContext('2d');
+                const minDim = Math.min(img.width, img.height);
+                const sx = (img.width - minDim) / 2;
+                const sy = (img.height - minDim) / 2;
+                ctx.drawImage(img, sx, sy, minDim, minDim, 0, 0, size, size);
+                const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+                newImageBase64 = dataUrl.split(',')[1];
+                let preview = content.querySelector('.ep-edit-img-preview');
+                if (preview.tagName !== 'IMG') {
+                  const newImg = document.createElement('img');
+                  newImg.className = 'ep-edit-img-preview';
+                  newImg.alt = '';
+                  preview.replaceWith(newImg);
+                  preview = newImg;
+                }
+                preview.src = dataUrl;
+              };
+              img.src = re.target.result;
+            };
+            reader.readAsDataURL(file);
+          });
 
           content.querySelector('.ep-edit-save').addEventListener('click', async () => {
-            const name = content.querySelector('input').value.trim();
+            const name = content.querySelector('input[type="text"]').value.trim();
             const desc = content.querySelector('textarea').value;
             if (!name) { Spicetify.showNotification('Name cannot be empty', true); return; }
             try {
               await Spicetify.Platform.PlaylistAPI.updateDetails(pin.uri, { name, description: desc });
-              const pins = loadPins();
-              const p = pins.find(pp => pp.uri === pin.uri);
-              if (p) { p.name = name; savePins(pins); renderPins(); }
+
+              if (newImageBase64) {
+                let imageUploaded = false;
+                try {
+                  const token = Spicetify.Platform?.Session?.accessToken;
+                  if (token) {
+                    const res = await fetch(`https://api.spotify.com/v1/playlists/${playlistId}/images`, {
+                      method: 'PUT',
+                      headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'image/jpeg' },
+                      body: newImageBase64
+                    });
+                    imageUploaded = res.ok || res.status === 202;
+                  }
+                } catch (imgErr) {
+                  console.warn('[Enhanced Pins] Image upload failed', imgErr);
+                }
+                if (!imageUploaded) {
+                  Spicetify.showNotification('Name saved but image upload failed', true);
+                }
+              }
+
+              const allPins = loadPins();
+              const p = allPins.find(pp => pp.uri === pin.uri);
+              if (p) {
+                p.name = name;
+                if (newImageBase64) {
+                  try {
+                    const newMeta = await Spicetify.Platform.PlaylistAPI.getMetadata(pin.uri);
+                    if (newMeta?.images?.[0]?.url) p.imageUrl = newMeta.images[0].url;
+                  } catch {}
+                }
+                savePins(allPins);
+                renderPins();
+              }
               Spicetify.PopupModal.hide();
               Spicetify.showNotification('Playlist updated');
             } catch {
@@ -941,12 +1149,23 @@ function renderPins() {
     return;
   }
 
+  // Filter pins based on active sidebar entity type filter
+  const activeFilter = getActiveTypeFilter();
+  const filteredPins = activeFilter
+    ? pins.filter(pin => activeFilter.has(pin.type))
+    : pins;
+
+  const viewMode = detectViewMode();
+
   const container = document.createElement('div');
   container.id = EP_CONTAINER_ID;
+  container.className = `ep-view-${viewMode}`;
+  container.dataset.viewMode = viewMode;
+  container.dataset.filterKey = activeFilter ? [...activeFilter].sort().join(',') : '';
 
   const section = document.createElement('div');
   section.className = 'ep-section';
-  section.setAttribute('role', 'grid');
+  section.setAttribute('role', 'list');
   section.setAttribute('aria-label', 'Enhanced Pins');
 
   // Section header
@@ -963,17 +1182,32 @@ function renderPins() {
   });
   section.appendChild(header);
 
+  // If no pins match the active filter, show header only (settings gear remains accessible)
+  if (filteredPins.length === 0) {
+    container.appendChild(section);
+    const injection = findInjectionPoint();
+    if (!injection) return;
+    injection.parent.insertBefore(container, injection.reference);
+    updateHideStyles();
+    return;
+  }
+
+  // Items wrapper for layout control
+  const itemsWrapper = document.createElement('div');
+  itemsWrapper.className = 'ep-items';
+
   // Pin items
   const clickTimers = {};
 
-  pins.forEach(pin => {
+  filteredPins.forEach(pin => {
     const typeLabel = TYPE_LABEL_MAP[pin.type] || 'Playlist';
     const subtitle = pin.owner ? `${typeLabel} \u2022 ${pin.owner}` : typeLabel;
 
     const item = document.createElement('div');
     item.className = 'ep-item';
     item.setAttribute('data-uri', pin.uri);
-    item.setAttribute('role', 'row');
+    item.setAttribute('role', 'listitem');
+    item.setAttribute('title', pin.name);
     item.tabIndex = 0;
 
     item.innerHTML = `
@@ -989,7 +1223,8 @@ function renderPins() {
         <p class="ep-item-title">${escapeHtml(pin.name)}</p>
         <p class="ep-item-subtitle">
           <svg class="ep-item-pin-icon" viewBox="0 0 16 16" fill="currentColor"><path d="${PIN_SVG_PATH}"></path></svg>
-          <span>${escapeHtml(subtitle)}</span>
+          <span class="ep-subtitle-full">${escapeHtml(subtitle)}</span>
+          <span class="ep-subtitle-short">${escapeHtml(pin.owner || typeLabel)}</span>
         </p>
       </div>
       <div class="ep-playing-indicator">
@@ -1032,9 +1267,10 @@ function renderPins() {
       showContextMenu(e, pin);
     });
 
-    section.appendChild(item);
+    itemsWrapper.appendChild(item);
   });
 
+  section.appendChild(itemsWrapper);
   container.appendChild(section);
 
   const injection = findInjectionPoint();
@@ -1083,14 +1319,36 @@ function setupSidebarObserver() {
 
   let debounceTimer = null;
 
-  const observer = new MutationObserver(() => {
-    if (!document.getElementById(EP_CONTAINER_ID) && currentPins.length > 0) {
-      clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => renderPins(), 200);
-    }
-  });
+  const checkAndRender = () => {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      const epContainer = document.getElementById(EP_CONTAINER_ID);
+      const epMissing = !epContainer && currentPins.length > 0;
+      const newMode = detectViewMode();
+      const modeChanged = epContainer && epContainer.dataset.viewMode !== newMode;
 
-  observer.observe(navBar, { childList: true, subtree: true });
+      // Check if sidebar filter changed
+      const currentFilter = getActiveTypeFilter();
+      const currentFilterKey = currentFilter ? [...currentFilter].sort().join(',') : '';
+      const prevFilterKey = epContainer?.dataset.filterKey ?? '';
+      const filterChanged = currentFilterKey !== prevFilterKey;
+
+      if (epMissing || modeChanged || filterChanged) {
+        renderPins();
+      }
+    }, 200);
+  };
+
+  // Watch sidebar for structural changes (child additions/removals)
+  // and attribute changes on key elements (aria-label on the view combobox,
+  // aria-colcount on the treegrid) to detect view mode switches
+  const observer = new MutationObserver(checkAndRender);
+  observer.observe(navBar, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['aria-label', 'aria-colcount', 'aria-checked', 'aria-pressed', 'aria-selected']
+  });
 }
 
 //#endregion
@@ -1384,35 +1642,80 @@ function injectStyles() {
     }
 
     /* Edit details modal */
-    .ep-edit-field {
+    .ep-edit-image-section {
+      flex-shrink: 0;
+    }
+
+    .ep-edit-image-wrapper {
+      width: 180px;
+      height: 180px;
+      border-radius: 4px;
+      overflow: hidden;
+      cursor: pointer;
+      position: relative;
+      background: hsla(0, 0%, 100%, 0.1);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    .ep-edit-img-preview {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .ep-edit-img-placeholder {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .ep-edit-img-overlay {
+      position: absolute;
+      inset: 0;
       display: flex;
       flex-direction: column;
-      gap: 4px;
-      color: var(--spice-text, #fff);
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      background: rgba(0, 0, 0, 0.6);
+      opacity: 0;
+      transition: opacity 0.2s;
+      color: #fff;
       font-size: 14px;
+      font-weight: 600;
+    }
+
+    .ep-edit-image-wrapper:hover .ep-edit-img-overlay {
+      opacity: 1;
     }
 
     .ep-edit-input {
       width: 100%;
-      padding: 8px;
-      background: #333;
-      border: 1px solid #555;
+      padding: 8px 12px;
+      background: hsla(0, 0%, 100%, 0.1);
+      border: 1px solid transparent;
       border-radius: 4px;
       color: #fff;
       font-size: 14px;
       font-family: inherit;
       box-sizing: border-box;
+    }
+
+    .ep-edit-textarea {
       resize: vertical;
+      flex: 1;
     }
 
     .ep-edit-input:focus {
       outline: none;
       border-color: var(--spice-button, #1db954);
+      background: hsla(0, 0%, 100%, 0.15);
     }
 
     .ep-edit-save {
       align-self: flex-end;
-      padding: 8px 24px;
+      padding: 8px 32px;
       background: var(--spice-button, #1db954);
       border: none;
       border-radius: 20px;
@@ -1422,7 +1725,14 @@ function injectStyles() {
       cursor: pointer;
     }
 
-    .ep-edit-save:hover { opacity: 0.9; }
+    .ep-edit-save:hover { transform: scale(1.04); }
+
+    .ep-edit-disclaimer {
+      margin: 12px 0 0;
+      color: var(--spice-subtext, var(--text-subdued, #b3b3b3));
+      font-size: 11px;
+      line-height: 1.4;
+    }
 
     /* Delete confirmation */
     .ep-delete-cancel {
@@ -1449,6 +1759,134 @@ function injectStyles() {
     }
 
     .ep-delete-confirm:hover { opacity: 0.9; }
+
+    /* Items wrapper - default list layout */
+    .ep-items {
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Short subtitle hidden by default (shown in grid view) */
+    .ep-subtitle-short { display: none; }
+
+    /* ============ Compact List View ============ */
+    .ep-view-compact .ep-item {
+      min-height: 32px;
+      padding: 4px 8px;
+      gap: 4px;
+    }
+
+    .ep-view-compact .ep-item-art {
+      display: none;
+    }
+
+    .ep-view-compact .ep-item-text {
+      flex-direction: row;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .ep-view-compact .ep-item-subtitle {
+      order: -1;
+      gap: 0;
+    }
+
+    .ep-view-compact .ep-item-subtitle .ep-subtitle-full,
+    .ep-view-compact .ep-item-subtitle .ep-subtitle-short {
+      display: none;
+    }
+
+    .ep-view-compact .ep-playing-indicator,
+    .ep-view-compact .ep-item.ep-playing .ep-playing-indicator {
+      display: none;
+    }
+
+    /* ============ Default Grid (2 columns) ============ */
+    .ep-view-grid .ep-items {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px;
+      padding: 0 4px;
+    }
+
+    .ep-view-grid .ep-item {
+      flex-direction: column;
+      align-items: stretch;
+      padding: 12px;
+      min-height: auto;
+      border-radius: 8px;
+      gap: 8px;
+      background: hsla(0, 0%, 100%, 0.04);
+    }
+
+    .ep-view-grid .ep-item:hover {
+      background: hsla(0, 0%, 100%, 0.1);
+    }
+
+    .ep-view-grid .ep-item-art {
+      width: 100%;
+      height: auto;
+      aspect-ratio: 1;
+      border-radius: 6px;
+    }
+
+    .ep-view-grid .ep-art-overlay {
+      border-radius: 6px;
+    }
+
+    .ep-view-grid .ep-item-text {
+      gap: 2px;
+    }
+
+    .ep-view-grid .ep-subtitle-full { display: none; }
+    .ep-view-grid .ep-subtitle-short { display: inline; }
+
+    .ep-view-grid .ep-playing-indicator,
+    .ep-view-grid .ep-item.ep-playing .ep-playing-indicator {
+      display: none;
+    }
+
+    /* ============ Compact Grid (3 columns) ============ */
+    .ep-view-compact-grid .ep-items {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 4px;
+      padding: 0 4px;
+    }
+
+    .ep-view-compact-grid .ep-item {
+      flex-direction: column;
+      align-items: stretch;
+      padding: 0;
+      min-height: auto;
+      border-radius: 6px;
+      gap: 0;
+      overflow: hidden;
+    }
+
+    .ep-view-compact-grid .ep-item:hover {
+      background: transparent;
+    }
+
+    .ep-view-compact-grid .ep-item-art {
+      width: 100%;
+      height: auto;
+      aspect-ratio: 1;
+      border-radius: 6px;
+    }
+
+    .ep-view-compact-grid .ep-art-overlay {
+      border-radius: 6px;
+    }
+
+    .ep-view-compact-grid .ep-item-text {
+      display: none;
+    }
+
+    .ep-view-compact-grid .ep-playing-indicator,
+    .ep-view-compact-grid .ep-item.ep-playing .ep-playing-indicator {
+      display: none;
+    }
   `;
   document.head.appendChild(style);
 }
@@ -1481,6 +1919,15 @@ function injectStyles() {
   setupSidebarObserver();
   refreshStaleMetadata();
   updatePlayingStates();
+
+  // Delayed re-check: combobox may not exist on first render
+  setTimeout(() => {
+    const epContainer = document.getElementById(EP_CONTAINER_ID);
+    const currentMode = detectViewMode();
+    if (epContainer && epContainer.dataset.viewMode !== currentMode) {
+      renderPins();
+    }
+  }, 800);
 
   Spicetify.Player.addEventListener('songchange', updatePlayingStates);
   Spicetify.Player.addEventListener('onplaypause', updatePlayingStates);
