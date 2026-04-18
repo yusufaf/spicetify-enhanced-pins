@@ -1,6 +1,6 @@
 // NAME: Enhanced Pins
 // AUTHOR: yusufaf
-// VERSION: 1.0.0
+// VERSION: 1.1.0
 // DESCRIPTION: Bypass Spotify's 4-pin limit with unlimited enhanced pins
 
 (function () {
@@ -83,16 +83,37 @@ const PAUSE_SVG_PATH = 'M5.7 3a.7.7 0 0 0-.7.7v16.6a.7.7 0 0 0 .7.7h2.6a.7.7 0 0
 const SPEAKER_SVG_PATH_1 = 'M10.016 1.125A.75.75 0 0 0 8.99.85l-6.925 4a3.64 3.64 0 0 0 0 6.299l6.925 4a.75.75 0 0 0 1.125-.65v-13a.75.75 0 0 0-.1-.375zM11.5 5.56a2.75 2.75 0 0 1 0 4.88z';
 const SPEAKER_SVG_PATH_2 = 'M16 8a5.75 5.75 0 0 1-4.5 5.614v-1.55a4.252 4.252 0 0 0 0-8.127v-1.55A5.75 5.75 0 0 1 16 8';
 
-/** Gear/settings icon SVG path (16x16 viewBox) */
-const GEAR_SVG_PATH = 'M8.045 1.218a6.8 6.8 0 0 1 .91 0l.636.057.527.356.378.504.12.294.218.053.452-.16.576-.181.86.33.602.692.152.902-.222.554-.255.422.089.212.47.117.605.093.42.752v.924l-.42.752-.605.093-.47.117-.089.212.255.422.222.554-.152.902-.602.692-.86.33-.576-.181-.452-.16-.218.053-.12.294-.378.504-.527.356-.636.057a6.8 6.8 0 0 1-.91 0l-.636-.057-.527-.356-.378-.504-.12-.294-.218-.053-.452.16-.576.181-.86-.33-.602-.692-.152-.902.222-.554.255-.422-.089-.212-.47-.117-.605-.093L1 8.962v-.924l.42-.752.605-.093.47-.117.089-.212-.255-.422-.222-.554.152-.902.602-.692.86-.33.576.181.452.16.218-.053.12-.294.378-.504.527-.356zM8.5 6a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z';
+/** Gear/settings icon SVG path (16x16 viewBox, Bootstrap Icons gear-fill) */
+const GEAR_SVG_PATH = 'M9.405 1.05c-.413-1.4-2.397-1.4-2.81 0l-.1.34a1.464 1.464 0 0 1-2.105.872l-.31-.17c-1.283-.698-2.686.705-1.987 1.987l.169.311c.446.82.023 1.841-.872 2.105l-.34.1c-1.4.413-1.4 2.397 0 2.81l.34.1a1.464 1.464 0 0 1 .872 2.105l-.17.31c-.698 1.283.705 2.686 1.987 1.987l.311-.169a1.464 1.464 0 0 1 2.105.872l.1.34c.413 1.4 2.397 1.4 2.81 0l.1-.34a1.464 1.464 0 0 1 2.105-.872l.31.17c1.283.698 2.686-.705 1.987-1.987l-.169-.311a1.464 1.464 0 0 1 .872-2.105l.34-.1c1.4-.413 1.4-2.397 0-2.81l-.34-.1a1.464 1.464 0 0 1-.872-2.105l.17-.31c.698-1.283-.705-2.686-1.987-1.987l-.311.169a1.464 1.464 0 0 1-2.105-.872zM8 10.93a2.929 2.929 0 1 1 0-5.858 2.929 2.929 0 0 1 0 5.858z';
 
 /** LocalStorage key for EP config */
 const EP_CONFIG_KEY = 'enhanced-pins-config';
 
+/** Current export schema version */
+const EP_EXPORT_SCHEMA_VERSION = 1;
+
+/** Default keyboard shortcut bindings. Format: "Modifier+...+Code" using KeyboardEvent.code for layout independence */
+const EP_DEFAULT_SHORTCUTS = {
+  toggleExpand: 'Alt+KeyE',
+  openSettings: 'Alt+KeyS',
+  focusFirstPin: 'Alt+Digit1'
+};
+
+/** Human-readable labels for shortcut actions (used in settings UI) */
+const EP_SHORTCUT_LABELS = {
+  toggleExpand: 'Toggle show more / show less',
+  openSettings: 'Open Enhanced Pins settings',
+  focusFirstPin: 'Focus first pinned item'
+};
+
 /** Default configuration */
 const EP_DEFAULT_CONFIG = {
   hideFromLibrary: true,
-  confirmUnpin: false
+  confirmUnpin: false,
+  sortMode: 'custom',
+  maxVisiblePins: 0,
+  shortcutsEnabled: false,
+  shortcuts: { ...EP_DEFAULT_SHORTCUTS }
 };
 
 /** View mode constants */
@@ -113,6 +134,9 @@ let hideStyleElement = null;
 
 /** @type {string} Cached sidebar view mode */
 let cachedViewMode = VIEW_LIST;
+
+/** @type {boolean} Whether the user has expanded a truncated pin list */
+let expandedView = false;
 
 //#endregion
 
@@ -160,6 +184,83 @@ function loadConfig() {
  */
 function saveConfig(config) {
   Spicetify.LocalStorage.set(EP_CONFIG_KEY, JSON.stringify(config));
+}
+
+/**
+ * Returns a sorted copy of pins based on the given sort mode.
+ * Does not mutate the original array (preserves storage order for 'custom' drag-and-drop).
+ * @param {PinnedItem[]} pins
+ * @param {string} mode - 'custom' | 'alphabetical' | 'type' | 'recent'
+ * @returns {PinnedItem[]}
+ */
+function sortPins(pins, mode) {
+  if (mode === 'custom' || !mode) return pins;
+  const sorted = [...pins];
+  switch (mode) {
+    case 'alphabetical':
+      sorted.sort((a, b) => a.name.localeCompare(b.name));
+      break;
+    case 'type': {
+      const typeOrder = { playlist: 0, 'playlist-v2': 0, album: 1, show: 2, collection: 3 };
+      sorted.sort((a, b) => {
+        const diff = (typeOrder[a.type] ?? 99) - (typeOrder[b.type] ?? 99);
+        return diff !== 0 ? diff : a.name.localeCompare(b.name);
+      });
+      break;
+    }
+    case 'recent':
+      sorted.sort((a, b) => (b.pinnedAt || 0) - (a.pinnedAt || 0));
+      break;
+  }
+  return sorted;
+}
+
+/**
+ * Builds a JSON-serializable snapshot of pins + config.
+ * @returns {Object}
+ */
+function exportConfig() {
+  return {
+    schemaVersion: EP_EXPORT_SCHEMA_VERSION,
+    exportedAt: new Date().toISOString(),
+    pins: loadPins(),
+    config: loadConfig(),
+    extensions: {}
+  };
+}
+
+/**
+ * Validates an imported payload. Returns { ok, error, data } where data is the
+ * normalized payload (pins + merged config) on success.
+ * @param {unknown} raw
+ * @returns {{ok: true, data: {pins: PinnedItem[], config: Object}} | {ok: false, error: string}}
+ */
+function validateImport(raw) {
+  if (!raw || typeof raw !== 'object') return { ok: false, error: 'Not a JSON object' };
+  if (raw.schemaVersion !== EP_EXPORT_SCHEMA_VERSION) {
+    return { ok: false, error: `Unsupported schema version: ${raw.schemaVersion}` };
+  }
+  if (!Array.isArray(raw.pins)) return { ok: false, error: 'Missing pins array' };
+  for (const p of raw.pins) {
+    if (!p || typeof p.uri !== 'string' || typeof p.type !== 'string' || typeof p.name !== 'string') {
+      return { ok: false, error: 'Invalid pin entry' };
+    }
+  }
+  if (raw.config && typeof raw.config !== 'object') return { ok: false, error: 'Invalid config' };
+  const mergedConfig = { ...EP_DEFAULT_CONFIG, ...(raw.config || {}) };
+  if (raw.config?.shortcuts && typeof raw.config.shortcuts === 'object') {
+    mergedConfig.shortcuts = { ...EP_DEFAULT_SHORTCUTS, ...raw.config.shortcuts };
+  }
+  return { ok: true, data: { pins: raw.pins, config: mergedConfig } };
+}
+
+/**
+ * Applies a validated import payload to storage, replacing current pins/config.
+ * @param {{pins: PinnedItem[], config: Object}} data
+ */
+function importConfig(data) {
+  savePins(data.pins);
+  saveConfig(data.config);
 }
 
 //#endregion
@@ -308,6 +409,48 @@ function isAlreadyPinned(uri) {
 }
 
 /**
+ * Unpins an item, optionally showing a confirmation dialog based on config.
+ * Shared by both native and custom context menu unpin actions.
+ * @param {string} uri
+ */
+function performUnpin(uri) {
+  const pins = loadPins();
+  const item = pins.find(p => p.uri === uri);
+  if (!item) return;
+
+  const doUnpin = () => {
+    let current = loadPins();
+    current = current.filter(p => p.uri !== uri);
+    savePins(current);
+    renderPins();
+    Spicetify.showNotification(`Unpinned: ${item.name || 'item'}`);
+  };
+
+  const config = loadConfig();
+  if (config.confirmUnpin) {
+    const content = document.createElement('div');
+    content.innerHTML = `
+      <div style="padding:8px 0;">
+        <p style="color:var(--spice-text);font-size:14px;margin:0 0 16px;">
+          Are you sure you want to unpin <strong>${escapeHtml(item.name)}</strong>?
+        </p>
+        <div style="display:flex;gap:8px;justify-content:flex-end;">
+          <button class="ep-delete-cancel">Cancel</button>
+          <button class="ep-edit-save">Unpin</button>
+        </div>
+      </div>`;
+    content.querySelector('.ep-delete-cancel').addEventListener('click', () => Spicetify.PopupModal.hide());
+    content.querySelector('.ep-edit-save').addEventListener('click', () => {
+      doUnpin();
+      Spicetify.PopupModal.hide();
+    });
+    Spicetify.PopupModal.display({ title: 'Confirm unpin', content, isLarge: false });
+  } else {
+    doUnpin();
+  }
+}
+
+/**
  * Registers context menu items for pin/unpin
  */
 function registerContextMenuItems() {
@@ -348,15 +491,7 @@ function registerContextMenuItems() {
 
   const unpinItem = new Spicetify.ContextMenu.Item(
     'Enhanced Unpin',
-    (uris) => {
-      const uri = uris[0];
-      let pins = loadPins();
-      const item = pins.find(p => p.uri === uri);
-      pins = pins.filter(p => p.uri !== uri);
-      savePins(pins);
-      renderPins();
-      Spicetify.showNotification(`Unpinned: ${item?.name || 'item'}`);
-    },
+    (uris) => { performUnpin(uris[0]); },
     (uris) => {
       if (uris.length !== 1) return false;
       if (!isPinnable(uris[0])) return false;
@@ -402,6 +537,59 @@ function showSettingsModal() {
         </label>
       </div>
     </div>
+    <div class="ep-settings-section">
+      <h3 class="ep-settings-title">Sorting</h3>
+      <div class="ep-toggle-options">
+        <label class="ep-toggle-option" style="cursor:default;">
+          <span class="ep-toggle-label" style="margin-right:12px;">Sort by</span>
+          <select name="sortMode" class="ep-settings-select">
+            <option value="custom" ${config.sortMode === 'custom' ? 'selected' : ''}>Custom (manual)</option>
+            <option value="alphabetical" ${config.sortMode === 'alphabetical' ? 'selected' : ''}>Alphabetical</option>
+            <option value="type" ${config.sortMode === 'type' ? 'selected' : ''}>Type</option>
+            <option value="recent" ${config.sortMode === 'recent' ? 'selected' : ''}>Recently pinned</option>
+          </select>
+        </label>
+      </div>
+    </div>
+    <div class="ep-settings-section">
+      <h3 class="ep-settings-title">Display</h3>
+      <div class="ep-toggle-options">
+        <label class="ep-toggle-option" style="cursor:default;">
+          <span class="ep-toggle-label" style="margin-right:12px;">Max visible pins</span>
+          <input type="number" name="maxVisiblePins" class="ep-settings-number"
+            value="${config.maxVisiblePins}" min="0" max="100" placeholder="0 = all">
+        </label>
+      </div>
+    </div>
+    <div class="ep-settings-section">
+      <h3 class="ep-settings-title">Keyboard Shortcuts</h3>
+      <div class="ep-toggle-options">
+        <label class="ep-toggle-option">
+          <input type="checkbox" name="shortcutsEnabled" ${config.shortcutsEnabled ? 'checked' : ''}>
+          <span class="ep-toggle-switch"></span>
+          <span class="ep-toggle-label">Enable keyboard shortcuts</span>
+        </label>
+      </div>
+      <div class="ep-shortcut-bindings" style="display:${config.shortcutsEnabled ? 'flex' : 'none'};flex-direction:column;gap:8px;margin-top:12px;">
+        ${Object.keys(EP_DEFAULT_SHORTCUTS).map(action => `
+          <div class="ep-shortcut-row" style="display:flex;align-items:center;gap:12px;">
+            <span style="flex:1;">${EP_SHORTCUT_LABELS[action]}</span>
+            <button type="button" class="ep-settings-btn ep-btn-secondary ep-shortcut-record" data-action-key="${action}">
+              ${escapeHtml(config.shortcuts[action] || '(none)')}
+            </button>
+            <button type="button" class="ep-settings-btn ep-btn-secondary ep-shortcut-clear" data-action-key="${action}" title="Clear binding">×</button>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+    <div class="ep-settings-section">
+      <h3 class="ep-settings-title">Data</h3>
+      <div class="ep-toggle-options" style="flex-direction:row;gap:8px;flex-wrap:wrap;">
+        <button type="button" class="ep-settings-btn" data-action="export">Export pins &amp; config (JSON)</button>
+        <button type="button" class="ep-settings-btn ep-btn-secondary" data-action="import">Import from JSON…</button>
+        <input type="file" class="ep-import-file" accept="application/json,.json" style="display:none;">
+      </div>
+    </div>
   `;
 
   const checkboxes = content.querySelectorAll('input[type="checkbox"]');
@@ -413,6 +601,121 @@ function showSettingsModal() {
       if (e.target.name === 'hideFromLibrary') {
         updateHideStyles();
       }
+      if (e.target.name === 'shortcutsEnabled') {
+        const panel = content.querySelector('.ep-shortcut-bindings');
+        if (panel) panel.style.display = e.target.checked ? 'flex' : 'none';
+      }
+    });
+  });
+
+  content.querySelectorAll('.ep-shortcut-record').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const originalText = btn.textContent;
+      btn.textContent = 'Press keys…';
+      btn.disabled = true;
+      const onKey = (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        if (ev.key === 'Escape') {
+          btn.textContent = originalText;
+          btn.disabled = false;
+          window.removeEventListener('keydown', onKey, true);
+          return;
+        }
+        if (['Control', 'Alt', 'Shift', 'Meta'].includes(ev.key)) return;
+        if (!ev.ctrlKey && !ev.altKey && !ev.metaKey && !ev.shiftKey) return;
+        const parts = [];
+        if (ev.ctrlKey) parts.push('Ctrl');
+        if (ev.altKey) parts.push('Alt');
+        if (ev.shiftKey) parts.push('Shift');
+        if (ev.metaKey) parts.push('Meta');
+        parts.push(ev.code);
+        const binding = parts.join('+');
+        const newConfig = loadConfig();
+        newConfig.shortcuts = { ...newConfig.shortcuts, [btn.dataset.actionKey]: binding };
+        saveConfig(newConfig);
+        btn.textContent = binding;
+        btn.disabled = false;
+        window.removeEventListener('keydown', onKey, true);
+      };
+      window.addEventListener('keydown', onKey, true);
+    });
+  });
+
+  content.querySelectorAll('.ep-shortcut-clear').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const newConfig = loadConfig();
+      newConfig.shortcuts = { ...newConfig.shortcuts, [btn.dataset.actionKey]: '' };
+      saveConfig(newConfig);
+      const recordBtn = content.querySelector(`.ep-shortcut-record[data-action-key="${btn.dataset.actionKey}"]`);
+      if (recordBtn) recordBtn.textContent = '(none)';
+    });
+  });
+
+  const exportBtn = content.querySelector('[data-action="export"]');
+  if (exportBtn) {
+    exportBtn.addEventListener('click', () => {
+      const payload = exportConfig();
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      a.download = `enhanced-pins-${stamp}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      Spicetify.showNotification('Exported enhanced pins configuration');
+    });
+  }
+
+  const importBtn = content.querySelector('[data-action="import"]');
+  const importFile = content.querySelector('.ep-import-file');
+  if (importBtn && importFile) {
+    importBtn.addEventListener('click', () => importFile.click());
+    importFile.addEventListener('change', async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const raw = JSON.parse(text);
+        const result = validateImport(raw);
+        if (!result.ok) {
+          Spicetify.showNotification(`Import failed: ${result.error}`, true);
+          return;
+        }
+        if (!window.confirm(`Import ${result.data.pins.length} pins? This replaces your current pins and settings.`)) {
+          importFile.value = '';
+          return;
+        }
+        importConfig(result.data);
+        Spicetify.showNotification('Import complete. Reloading…');
+        setTimeout(() => location.reload(), 500);
+      } catch (err) {
+        Spicetify.showNotification(`Import failed: ${err.message}`, true);
+      } finally {
+        importFile.value = '';
+      }
+    });
+  }
+
+  content.querySelectorAll('select').forEach(select => {
+    select.addEventListener('change', (e) => {
+      const newConfig = loadConfig();
+      newConfig[e.target.name] = e.target.value;
+      saveConfig(newConfig);
+      renderPins();
+    });
+  });
+
+  content.querySelectorAll('input[type="number"]').forEach(input => {
+    input.addEventListener('change', (e) => {
+      const newConfig = loadConfig();
+      newConfig[e.target.name] = Math.max(0, parseInt(e.target.value) || 0);
+      saveConfig(newConfig);
+      expandedView = false;
+      renderPins();
     });
   });
 
@@ -716,6 +1019,8 @@ function createContextMenu() {
     <li class="ep-ctx-owner"><button data-action="visibility" role="menuitem"><span class="ep-ctx-label">Make private</span></button></li>
     <li class="ep-ctx-divider" role="separator"></li>
     <li><button data-action="native-pin" role="menuitem"><span class="ep-ctx-label">Pin playlist</span></button></li>
+    <li><button data-action="pin-to-top" role="menuitem"><span class="ep-ctx-label">Move to top</span></button></li>
+    <li><button data-action="pin-to-bottom" role="menuitem"><span class="ep-ctx-label">Move to bottom</span></button></li>
     <li><button data-action="unpin" role="menuitem"><span class="ep-ctx-label">Enhanced Unpin</span></button></li>
     <li class="ep-ctx-divider" role="separator"></li>
     <li><button data-action="copy-link" role="menuitem"><span class="ep-ctx-label">Copy Link</span></button></li>
@@ -748,6 +1053,14 @@ async function showContextMenu(e, pin) {
     const typeLabel = TYPE_LABEL_MAP[pin.type] || 'Playlist';
     radioLabel.textContent = `Go to ${typeLabel} Radio`;
   }
+
+  // Show "Move to top/bottom" only in custom sort mode
+  const ctxConfig = loadConfig();
+  const isCustomSort = ctxConfig.sortMode === 'custom';
+  menu.querySelectorAll('[data-action="pin-to-top"], [data-action="pin-to-bottom"]').forEach(btn => {
+    const li = btn.closest('li');
+    if (li) li.style.display = isCustomSort ? '' : 'none';
+  });
 
   // Hide owner-only items by default (shown after async ownership check)
   menu.querySelectorAll('.ep-ctx-owner').forEach(el => { el.style.display = 'none'; });
@@ -1075,15 +1388,17 @@ function setupContextMenuActions() {
         });
         break;
 
-      case 'unpin': {
-        let pins = loadPins();
-        const item = pins.find(p => p.uri === pin.uri);
-        pins = pins.filter(p => p.uri !== pin.uri);
-        savePins(pins);
-        renderPins();
-        Spicetify.showNotification(`Unpinned: ${item?.name || 'item'}`);
+      case 'unpin':
+        performUnpin(pin.uri);
         break;
-      }
+
+      case 'pin-to-top':
+        movePinToEdge(pin.uri, 'top');
+        break;
+
+      case 'pin-to-bottom':
+        movePinToEdge(pin.uri, 'bottom');
+        break;
 
       case 'settings':
         showSettingsModal();
@@ -1155,6 +1470,17 @@ function renderPins() {
     ? pins.filter(pin => activeFilter.has(pin.type))
     : pins;
 
+  // Sort and truncate
+  const config = loadConfig();
+  const sortedPins = sortPins(filteredPins, config.sortMode);
+  const maxVisible = config.maxVisiblePins;
+  let displayPins = sortedPins;
+  let hasMore = false;
+  if (maxVisible > 0 && !expandedView && sortedPins.length > maxVisible) {
+    displayPins = sortedPins.slice(0, maxVisible);
+    hasMore = true;
+  }
+
   const viewMode = detectViewMode();
 
   const container = document.createElement('div');
@@ -1172,11 +1498,22 @@ function renderPins() {
   const header = document.createElement('div');
   header.className = 'ep-section-header';
   header.innerHTML = `
-    <span class="ep-section-label">Enhanced Pins</span>
-    <button class="ep-settings-gear" title="Enhanced Pins Settings" type="button">
-      <span class="ep-settings-icon">\u2699\uFE0F</span>
+    <span class="ep-section-label">Enhanced Pins (${pins.length})</span>
+    <button class="ep-settings-gear" title="Enhanced Pins Settings" type="button" draggable="false">
+      <svg class="ep-settings-icon" viewBox="0 0 16 16" fill="currentColor" fill-rule="evenodd" aria-hidden="true">
+        <path d="${GEAR_SVG_PATH}"></path>
+      </svg>
     </button>`;
-  header.querySelector('.ep-settings-gear').addEventListener('click', (e) => {
+  const gearBtn = header.querySelector('.ep-settings-gear');
+  // Defensive event handling: newer Spotify versions attach drag/pointer handlers
+  // on the libraryRootlist ancestors that can swallow click events on injected
+  // buttons. Stop propagation at the earliest phase so the click reaches us.
+  const swallow = (e) => { e.stopPropagation(); };
+  gearBtn.addEventListener('pointerdown', swallow);
+  gearBtn.addEventListener('mousedown', swallow);
+  gearBtn.addEventListener('dragstart', (e) => { e.preventDefault(); e.stopPropagation(); });
+  gearBtn.addEventListener('click', (e) => {
+    e.preventDefault();
     e.stopPropagation();
     showSettingsModal();
   });
@@ -1199,7 +1536,7 @@ function renderPins() {
   // Pin items
   const clickTimers = {};
 
-  filteredPins.forEach(pin => {
+  displayPins.forEach(pin => {
     const typeLabel = TYPE_LABEL_MAP[pin.type] || 'Playlist';
     const subtitle = pin.owner ? `${typeLabel} \u2022 ${pin.owner}` : typeLabel;
 
@@ -1267,8 +1604,37 @@ function renderPins() {
       showContextMenu(e, pin);
     });
 
+    // Drag source for reordering (only in custom sort mode)
+    if (config.sortMode === 'custom') {
+      item.setAttribute('draggable', 'true');
+      item.addEventListener('dragstart', handleDragStart);
+      item.addEventListener('dragend', handleDragEnd);
+    }
+
+    // Drop target for pin reorder (element-level; external drops handled at document level)
+    if (config.sortMode === 'custom') {
+      item.addEventListener('dragover', handleDragOver);
+      item.addEventListener('drop', handleDrop);
+      item.addEventListener('dragleave', handleDragLeave);
+    }
+
     itemsWrapper.appendChild(item);
   });
+
+  // "N more" / "Show less" toggle for max visible pins
+  if (hasMore) {
+    const moreLink = document.createElement('button');
+    moreLink.className = 'ep-show-more';
+    moreLink.textContent = `${sortedPins.length - maxVisible} more`;
+    moreLink.addEventListener('click', () => { expandedView = true; renderPins(); });
+    itemsWrapper.appendChild(moreLink);
+  } else if (maxVisible > 0 && expandedView && sortedPins.length > maxVisible) {
+    const lessLink = document.createElement('button');
+    lessLink.className = 'ep-show-more';
+    lessLink.textContent = 'Show less';
+    lessLink.addEventListener('click', () => { expandedView = false; renderPins(); });
+    itemsWrapper.appendChild(lessLink);
+  }
 
   section.appendChild(itemsWrapper);
   container.appendChild(section);
@@ -1304,6 +1670,312 @@ function updateHideStyles() {
   });
 
   hideStyleElement.textContent = `${rules.join(',\n')} { display: none !important; }`;
+}
+
+//#endregion
+
+//#region Drag and Drop
+
+/** @type {{uri: string}|null} Active drag session state (non-null = internal pin reorder) */
+let dragState = null;
+
+/** CSS classes used for drag indicators */
+const DRAG_INDICATOR_CLASSES = ['ep-drag-over-top', 'ep-drag-over-bottom', 'ep-drag-over-left', 'ep-drag-over-right', 'ep-drop-target'];
+
+function clearDragIndicators() {
+  document.querySelectorAll('.' + DRAG_INDICATOR_CLASSES.join(', .'))
+    .forEach(el => DRAG_INDICATOR_CLASSES.forEach(c => el.classList.remove(c)));
+}
+
+/**
+ * Checks if the target pin is a playlist that can accept track drops
+ * @param {string} uri
+ * @returns {boolean}
+ */
+function isPlaylistPin(uri) {
+  const pin = currentPins.find(p => p.uri === uri);
+  return pin && (pin.type === 'playlist' || pin.type === 'playlist-v2');
+}
+
+/**
+ * Extracts Spotify URIs from drag event dataTransfer.
+ * Tries multiple formats since Spotify may use different data types.
+ * @param {DragEvent} e
+ * @returns {string[]}
+ */
+function extractDroppedUris(e) {
+  const uris = [];
+
+  // Try all available data types
+  for (const type of e.dataTransfer.types) {
+    const data = e.dataTransfer.getData(type);
+    if (!data) continue;
+
+    // Check for spotify URIs in the data
+    const uriMatches = data.match(/spotify:(track|episode|album|playlist):[a-zA-Z0-9]+/g);
+    if (uriMatches) {
+      for (const uri of uriMatches) {
+        if (!uris.includes(uri)) uris.push(uri);
+      }
+    }
+
+    // Check for open.spotify.com URLs
+    const urlMatches = data.match(/open\.spotify\.com\/(track|episode|album|playlist)\/([a-zA-Z0-9]+)/g);
+    if (urlMatches) {
+      for (const url of urlMatches) {
+        const m = url.match(/open\.spotify\.com\/(track|episode|album|playlist)\/([a-zA-Z0-9]+)/);
+        if (m) {
+          const uri = `spotify:${m[1]}:${m[2]}`;
+          if (!uris.includes(uri)) uris.push(uri);
+        }
+      }
+    }
+  }
+
+  return uris;
+}
+
+// --- Internal pin reorder (element-level HTML5 DnD) ---
+
+function handleDragStart(e) {
+  const item = e.currentTarget;
+  dragState = { uri: item.dataset.uri };
+  item.classList.add('ep-dragging');
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', item.dataset.uri);
+}
+
+function handleDragEnd(e) {
+  e.currentTarget.classList.remove('ep-dragging');
+  clearDragIndicators();
+  dragState = null;
+}
+
+function handleDragOver(e) {
+  const item = e.currentTarget;
+  if (!dragState || item.dataset.uri === dragState.uri) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+
+  clearDragIndicators();
+
+  const rect = item.getBoundingClientRect();
+  const container = document.getElementById(EP_CONTAINER_ID);
+  const isGrid = container && (container.classList.contains('ep-view-grid') || container.classList.contains('ep-view-compact-grid'));
+
+  if (isGrid) {
+    item.classList.add(e.clientX < rect.left + rect.width / 2 ? 'ep-drag-over-left' : 'ep-drag-over-right');
+  } else {
+    item.classList.add(e.clientY < rect.top + rect.height / 2 ? 'ep-drag-over-top' : 'ep-drag-over-bottom');
+  }
+}
+
+function handleDrop(e) {
+  e.preventDefault();
+  const targetItem = e.currentTarget;
+  clearDragIndicators();
+
+  if (!dragState) return;
+
+  const sourceUri = dragState.uri;
+  const targetUri = targetItem.dataset.uri;
+  if (sourceUri === targetUri) return;
+
+  const rect = targetItem.getBoundingClientRect();
+  const container = document.getElementById(EP_CONTAINER_ID);
+  const isGrid = container && (container.classList.contains('ep-view-grid') || container.classList.contains('ep-view-compact-grid'));
+  const insertBefore = isGrid
+    ? e.clientX < rect.left + rect.width / 2
+    : e.clientY < rect.top + rect.height / 2;
+
+  const pins = loadPins();
+  const sourceIdx = pins.findIndex(p => p.uri === sourceUri);
+  if (sourceIdx === -1) return;
+
+  const [moved] = pins.splice(sourceIdx, 1);
+  let targetIdx = pins.findIndex(p => p.uri === targetUri);
+  if (targetIdx === -1) return;
+
+  if (!insertBefore) targetIdx++;
+  pins.splice(targetIdx, 0, moved);
+  savePins(pins);
+  renderPins();
+}
+
+/**
+ * Moves a pin to the top or bottom of the custom order.
+ * No-op if current sort mode is not 'custom'.
+ * @param {string} uri
+ * @param {'top'|'bottom'} edge
+ */
+function movePinToEdge(uri, edge) {
+  const config = loadConfig();
+  if (config.sortMode !== 'custom') {
+    Spicetify.showNotification('Move only works in Custom sort mode', true);
+    return;
+  }
+  const pins = loadPins();
+  const idx = pins.findIndex(p => p.uri === uri);
+  if (idx === -1) return;
+  const [moved] = pins.splice(idx, 1);
+  if (edge === 'top') pins.unshift(moved); else pins.push(moved);
+  savePins(pins);
+  renderPins();
+}
+
+function handleDragLeave(e) {
+  DRAG_INDICATOR_CLASSES.forEach(c => e.currentTarget.classList.remove(c));
+}
+
+// --- External drop support (document-level capture + body attribute monitoring) ---
+
+/**
+ * Finds the ep-item playlist element under the mouse coordinates, if any.
+ * @param {number} x
+ * @param {number} y
+ * @returns {HTMLElement|null}
+ */
+function getPlaylistItemAtPoint(x, y) {
+  const container = document.getElementById(EP_CONTAINER_ID);
+  if (!container) return null;
+  for (const item of container.querySelectorAll('.ep-item')) {
+    if (!isPlaylistPin(item.dataset.uri)) continue;
+    const rect = item.getBoundingClientRect();
+    if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+      return item;
+    }
+  }
+  return null;
+}
+
+/**
+ * Adds tracks to a playlist via Spicetify Platform API
+ * @param {PinnedItem} pin
+ * @param {string[]} trackUris
+ */
+async function addTracksToPlaylist(pin, trackUris) {
+  console.debug('[Enhanced Pins] Adding to playlist:', pin.uri, 'tracks:', trackUris);
+
+  // Extract playlist ID from URI (spotify:playlist:XXXXX → XXXXX)
+  const playlistId = pin.uri.split(':').pop();
+
+  // Try multiple API approaches
+  const attempts = [
+    {
+      name: 'PlaylistAPI.add',
+      enabled: !!Spicetify.Platform?.PlaylistAPI?.add,
+      fn: () => Spicetify.Platform.PlaylistAPI.add(pin.uri, trackUris, { after: 'end' }),
+    },
+    {
+      name: 'CosmosAsync Web API',
+      enabled: !!Spicetify.CosmosAsync,
+      fn: () => Spicetify.CosmosAsync.post(
+        `https://api.spotify.com/v1/playlists/${playlistId}/tracks`,
+        { uris: trackUris }
+      ),
+    },
+    {
+      name: 'CosmosAsync sp protocol',
+      enabled: !!Spicetify.CosmosAsync,
+      fn: () => Spicetify.CosmosAsync.post(
+        `sp://core-playlist/v1/playlist/${pin.uri}/tracks`,
+        { uris: trackUris }
+      ),
+    },
+  ];
+
+  for (const attempt of attempts) {
+    if (!attempt.enabled) continue;
+    try {
+      console.debug(`[Enhanced Pins] Trying ${attempt.name}...`);
+      await attempt.fn();
+      console.debug(`[Enhanced Pins] ${attempt.name} succeeded`);
+      return;
+    } catch (err) {
+      console.warn(`[Enhanced Pins] ${attempt.name} failed:`, err);
+    }
+  }
+
+  Spicetify.showNotification('Failed to add to playlist', true);
+}
+
+/** Whether document-level external drop listeners have been registered */
+let externalDropListenersRegistered = false;
+
+/**
+ * Registers document-level capture-phase listeners for external track drops.
+ * Spotify's React drag system doesn't emit standard drag events on custom elements,
+ * so we intercept at the document level and hit-test against our elements by coordinates.
+ */
+function setupExternalDropListeners() {
+  if (externalDropListenersRegistered) return;
+  externalDropListenersRegistered = true;
+
+  // Intercept dragover at document level (capture phase) to enable drops on our elements
+  document.addEventListener('dragover', (e) => {
+    // Skip if this is an internal pin reorder (handled by element-level listeners)
+    if (dragState) return;
+
+    const item = getPlaylistItemAtPoint(e.clientX, e.clientY);
+    if (item) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+      clearDragIndicators();
+      item.classList.add('ep-drop-target');
+    } else {
+      // Clear our indicators if mouse left our items
+      clearDragIndicators();
+    }
+  }, true);
+
+  // Intercept drop at document level (capture phase) to handle external track drops
+  document.addEventListener('drop', (e) => {
+    if (dragState) return;
+
+    const item = getPlaylistItemAtPoint(e.clientX, e.clientY);
+    if (!item) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+    clearDragIndicators();
+
+    // Log raw dataTransfer for debugging
+    const debugInfo = {};
+    for (const type of e.dataTransfer.types) {
+      debugInfo[type] = e.dataTransfer.getData(type);
+    }
+    console.debug('[Enhanced Pins] Drop dataTransfer:', debugInfo);
+
+    const allUris = extractDroppedUris(e);
+    // Only track and episode URIs can be added to playlists
+    const trackUris = allUris.filter(u => u.startsWith('spotify:track:') || u.startsWith('spotify:episode:'));
+    console.debug('[Enhanced Pins] Extracted URIs:', allUris, '→ addable:', trackUris);
+
+    if (trackUris.length === 0) {
+      if (allUris.length > 0) {
+        Spicetify.showNotification('Can only add tracks to playlists', true);
+      }
+      return;
+    }
+
+    const pin = currentPins.find(p => p.uri === item.dataset.uri);
+    if (pin) addTracksToPlaylist(pin, trackUris);
+  }, true);
+
+  // Monitor body data-dragging-uri-type attribute for visual feedback
+  const bodyObserver = new MutationObserver(() => {
+    const container = document.getElementById(EP_CONTAINER_ID);
+    if (!container) return;
+    const isDragging = document.body.hasAttribute('data-dragging-uri-type');
+    container.querySelectorAll('.ep-item').forEach(item => {
+      if (isDragging && isPlaylistPin(item.dataset.uri)) {
+        item.classList.add('ep-accepting-drops');
+      } else {
+        item.classList.remove('ep-accepting-drops');
+      }
+    });
+  });
+  bodyObserver.observe(document.body, { attributes: true, attributeFilter: ['data-dragging-uri-type'] });
 }
 
 //#endregion
@@ -1518,12 +2190,20 @@ function injectStyles() {
       opacity: 0;
       transition: opacity 0.2s;
       border-radius: 4px;
-      font-size: 14px;
-      line-height: 1;
+      color: var(--spice-subtext, var(--text-subdued, #b3b3b3));
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
     }
 
     .ep-settings-icon {
-      font-size: 14px;
+      width: 14px;
+      height: 14px;
+      display: block;
+    }
+
+    .ep-settings-gear:hover .ep-settings-icon {
+      color: var(--spice-text, #fff);
     }
 
     .ep-section:hover .ep-settings-gear { opacity: 0.7; }
@@ -1769,6 +2449,111 @@ function injectStyles() {
     /* Short subtitle hidden by default (shown in grid view) */
     .ep-subtitle-short { display: none; }
 
+    /* Drag and drop */
+    .ep-item.ep-dragging { cursor: grabbing; }
+    .ep-dragging { opacity: 0.4; }
+    .ep-drag-over-top { box-shadow: 0 -2px 0 0 var(--spice-button, #1db954); }
+    .ep-drag-over-bottom { box-shadow: 0 2px 0 0 var(--spice-button, #1db954); }
+    .ep-drag-over-left { box-shadow: -2px 0 0 0 var(--spice-button, #1db954); }
+    .ep-drag-over-right { box-shadow: 2px 0 0 0 var(--spice-button, #1db954); }
+
+    /* External drop: subtle hint that playlists accept drops during any Spotify drag */
+    .ep-accepting-drops {
+      outline: 1px dashed rgba(255, 255, 255, 0.2);
+      outline-offset: -1px;
+      border-radius: 6px;
+    }
+
+    /* External drop: active highlight when hovering over a playlist target */
+    .ep-drop-target {
+      background: hsla(141, 73%, 42%, 0.15) !important;
+      box-shadow: inset 0 0 0 2px var(--spice-button, #1db954);
+      border-radius: 6px;
+    }
+
+    /* Show more / show less link */
+    .ep-show-more {
+      background: transparent;
+      border: none;
+      color: var(--spice-subtext, var(--text-subdued, #b3b3b3));
+      font-size: 12px;
+      padding: 6px 8px;
+      cursor: pointer;
+      text-align: left;
+      width: 100%;
+    }
+    .ep-show-more:hover {
+      color: var(--spice-text, #fff);
+      text-decoration: underline;
+    }
+
+    /* Settings select dropdown */
+    .ep-settings-select {
+      background: hsla(0, 0%, 100%, 0.1);
+      border: 1px solid transparent;
+      border-radius: 4px;
+      color: #fff;
+      font-size: 14px;
+      font-family: inherit;
+      padding: 6px 8px;
+      cursor: pointer;
+    }
+    .ep-settings-select:focus {
+      outline: none;
+      border-color: var(--spice-button, #1db954);
+    }
+    .ep-settings-select option {
+      background: #282828;
+      color: #fff;
+    }
+
+    /* Settings number input */
+    .ep-settings-number {
+      background: hsla(0, 0%, 100%, 0.1);
+      border: 1px solid transparent;
+      border-radius: 4px;
+      color: #fff;
+      font-size: 14px;
+      font-family: inherit;
+      padding: 6px 8px;
+      width: 80px;
+      text-align: center;
+    }
+    .ep-settings-number:focus {
+      outline: none;
+      border-color: var(--spice-button, #1db954);
+    }
+
+    /* Settings buttons (export/import/shortcut record) */
+    .ep-settings-btn {
+      background: var(--spice-button, #1db954);
+      color: var(--spice-main, #000);
+      border: none;
+      border-radius: 500px;
+      padding: 8px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .ep-settings-btn:hover:not(:disabled) { filter: brightness(1.08); }
+    .ep-settings-btn:disabled { opacity: 0.6; cursor: default; }
+    .ep-settings-btn.ep-btn-secondary {
+      background: transparent;
+      color: var(--spice-text, #fff);
+      border: 1px solid hsla(0, 0%, 100%, 0.3);
+    }
+    .ep-settings-btn.ep-btn-secondary:hover:not(:disabled) {
+      background: hsla(0, 0%, 100%, 0.08);
+      filter: none;
+    }
+    .ep-shortcut-clear {
+      padding: 4px 10px;
+      font-size: 14px;
+      line-height: 1;
+    }
+
     /* ============ Compact List View ============ */
     .ep-view-compact .ep-item {
       min-height: 32px;
@@ -1846,6 +2631,12 @@ function injectStyles() {
       display: none;
     }
 
+    .ep-view-grid .ep-show-more,
+    .ep-view-compact-grid .ep-show-more {
+      grid-column: 1 / -1;
+      text-align: center;
+    }
+
     /* ============ Compact Grid (3 columns) ============ */
     .ep-view-compact-grid .ep-items {
       display: grid;
@@ -1893,6 +2684,72 @@ function injectStyles() {
 
 //#endregion
 
+//#region Shortcuts
+
+/**
+ * Builds the binding string for a KeyboardEvent (e.g. "Ctrl+Alt+KeyE").
+ * Uses event.code for layout-independent bindings.
+ * Returns empty string for pure-modifier presses.
+ * @param {KeyboardEvent} e
+ * @returns {string}
+ */
+function eventToBinding(e) {
+  if (['Control', 'Alt', 'Shift', 'Meta'].includes(e.key)) return '';
+  const parts = [];
+  if (e.ctrlKey) parts.push('Ctrl');
+  if (e.altKey) parts.push('Alt');
+  if (e.shiftKey) parts.push('Shift');
+  if (e.metaKey) parts.push('Meta');
+  parts.push(e.code);
+  return parts.join('+');
+}
+
+/**
+ * Executes a shortcut action by name.
+ * @param {string} action
+ */
+function runShortcutAction(action) {
+  switch (action) {
+    case 'toggleExpand':
+      expandedView = !expandedView;
+      renderPins();
+      break;
+    case 'openSettings':
+      showSettingsModal();
+      break;
+    case 'focusFirstPin': {
+      const first = document.querySelector(`#${EP_CONTAINER_ID} .ep-item`);
+      if (first) first.focus();
+      break;
+    }
+  }
+}
+
+/**
+ * Installs the global keydown listener that dispatches configured shortcuts.
+ * Skips events originating inside editable fields.
+ */
+function setupShortcuts() {
+  window.addEventListener('keydown', (e) => {
+    const config = loadConfig();
+    if (!config.shortcutsEnabled) return;
+    const target = e.target;
+    if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
+    const binding = eventToBinding(e);
+    if (!binding) return;
+    for (const [action, bound] of Object.entries(config.shortcuts || {})) {
+      if (bound && bound === binding) {
+        e.preventDefault();
+        e.stopPropagation();
+        runShortcutAction(action);
+        return;
+      }
+    }
+  }, true);
+}
+
+//#endregion
+
 //#region Bootstrap
 
 (async function () {
@@ -1917,6 +2774,8 @@ function injectStyles() {
   setupContextMenuDismissal();
   renderPins();
   setupSidebarObserver();
+  setupExternalDropListeners();
+  setupShortcuts();
   refreshStaleMetadata();
   updatePlayingStates();
 
