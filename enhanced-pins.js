@@ -1,6 +1,6 @@
 // NAME: Enhanced Pins
 // AUTHOR: yusufaf
-// VERSION: 1.1.0
+// VERSION: 1.1.1
 // DESCRIPTION: Bypass Spotify's 4-pin limit with unlimited enhanced pins
 
 (function () {
@@ -507,6 +507,16 @@ function registerContextMenuItems() {
 //#endregion
 
 //#region Settings
+
+/**
+ * Registers an "Enhanced Pins" entry in the Spotify profile menu so settings
+ * remain reachable even when the library sidebar (and its gear icon) is hidden.
+ */
+function registerMenuItem() {
+  if (!Spicetify?.Menu?.Item) return;
+  const item = new Spicetify.Menu.Item('Enhanced Pins', false, showSettingsModal);
+  item.register();
+}
 
 /**
  * Shows the Enhanced Pins settings modal
@@ -2759,6 +2769,7 @@ function setupShortcuts() {
     !Spicetify?.LocalStorage ||
     !Spicetify?.URI ||
     !Spicetify?.CosmosAsync ||
+    !Spicetify?.Menu?.Item ||
     !document.querySelector(SEL_NAV_BAR)
   ) {
     await new Promise((resolve) => setTimeout(resolve, 100));
@@ -2768,6 +2779,7 @@ function setupShortcuts() {
 
   injectStyles();
   currentPins = loadPins();
+  registerMenuItem();
   registerContextMenuItems();
   createContextMenu();
   setupContextMenuActions();

@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2026-04-25
+
+### Added
+- "Enhanced Pins" entry in the Spotify profile menu so settings are reachable when the library sidebar is hidden or empty
+
 ## [1.1.0] - 2026-04-18
 
 ### Added
@@ -31,5 +36,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Native sidebar integration with artwork and subtitles
 - Active item highlighting synced with current playback/navigation
 
+[1.1.1]: https://github.com/yusufaf/spicetify-enhanced-pins/releases/tag/v1.1.1
 [1.1.0]: https://github.com/yusufaf/spicetify-enhanced-pins/releases/tag/v1.1.0
 [1.0.0]: https://github.com/yusufaf/spicetify-enhanced-pins/releases/tag/v1.0.0
