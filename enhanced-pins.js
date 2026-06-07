@@ -1,6 +1,6 @@
 // NAME: Enhanced Pins
 // AUTHOR: yusufaf
-// VERSION: 1.1.1
+// VERSION: 1.2.0
 // DESCRIPTION: Bypass Spotify's 4-pin limit with unlimited enhanced pins
 
 (function () {
@@ -86,6 +86,49 @@ const SPEAKER_SVG_PATH_2 = 'M16 8a5.75 5.75 0 0 1-4.5 5.614v-1.55a4.252 4.252 0 
 /** Gear/settings icon SVG path (16x16 viewBox, Bootstrap Icons gear-fill) */
 const GEAR_SVG_PATH = 'M9.405 1.05c-.413-1.4-2.397-1.4-2.81 0l-.1.34a1.464 1.464 0 0 1-2.105.872l-.31-.17c-1.283-.698-2.686.705-1.987 1.987l.169.311c.446.82.023 1.841-.872 2.105l-.34.1c-1.4.413-1.4 2.397 0 2.81l.34.1a1.464 1.464 0 0 1 .872 2.105l-.17.31c-.698 1.283.705 2.686 1.987 1.987l.311-.169a1.464 1.464 0 0 1 2.105.872l.1.34c.413 1.4 2.397 1.4 2.81 0l.1-.34a1.464 1.464 0 0 1 2.105-.872l.31.17c1.283.698 2.686-.705 1.987-1.987l-.169-.311a1.464 1.464 0 0 1 .872-2.105l.34-.1c1.4-.413 1.4-2.397 0-2.81l-.34-.1a1.464 1.464 0 0 1-.872-2.105l.17-.31c.698-1.283-.705-2.686-1.987-1.987l-.311.169a1.464 1.464 0 0 1-2.105-.872zM8 10.93a2.929 2.929 0 1 1 0-5.858 2.929 2.929 0 0 1 0 5.858z';
 
+/**
+ * Selectable pin marker icons. Each entry's `body` is trusted inner-SVG markup
+ * (authored here, never user input) rendered inside a 16x16 viewBox.
+ * The first entry (`pushpin`) is the historical default and reuses PIN_SVG_PATH.
+ * Goofy faces (emoji-*) are included; further personalization is via emoji input.
+ * SVG paths sourced from Bootstrap Icons (MIT), same source as GEAR_SVG_PATH.
+ * @type {{key: string, label: string, body: string}[]}
+ */
+const EP_ICON_PRESETS = [
+  { key: 'pushpin', label: 'Pushpin', body: `<path d="${PIN_SVG_PATH}"/>` },
+  { key: 'star', label: 'Star', body: '<path d="M3.612 15.443c-.386.198-.824-.149-.746-.592l.83-4.73L.173 6.765c-.329-.314-.158-.888.283-.95l4.898-.696L7.538.792c.197-.39.73-.39.927 0l2.184 4.327 4.898.696c.441.062.612.636.282.95l-3.522 3.356.83 4.73c.078.443-.36.79-.746.592L8 13.187l-4.389 2.256z"/>' },
+  { key: 'heart', label: 'Heart', body: '<path d="M8 1.314C12.438-3.248 23.534 4.735 8 15-7.534 4.736 3.562-3.248 8 1.314"/>' },
+  { key: 'lightning', label: 'Lightning', body: '<path d="M11.251.068a.5.5 0 0 1 .227.58L9.677 6.5H13a.5.5 0 0 1 .364.843l-8 8.5a.5.5 0 0 1-.842-.49L6.323 9.5H3a.5.5 0 0 1-.364-.843l8-8.5a.5.5 0 0 1 .615-.09z"/>' },
+  { key: 'fire', label: 'Fire', body: '<path d="M8 16c3.314 0 6-2 6-5.5 0-1.5-.5-4-2.5-6 .25 1.5-1.25 2-1.25 2C11 4 9 .5 6 0c.357 2 .5 4-2 6-1.25 1-2 2.729-2 4.5C2 14 4.686 16 8 16m0-1c-1.657 0-3-1-3-2.75 0-.75.25-2 1.25-3C6.125 10 7 10.5 7 10.5c-.375-1.25.5-3.25 2-3.5-.179 1-.25 2 1 3 .625.5 1 1.364 1 2.25C11 14 9.657 15 8 15"/>' },
+  { key: 'gem', label: 'Gem', body: '<path d="M3.1.7a.5.5 0 0 1 .4-.2h9a.5.5 0 0 1 .4.2l2.976 3.974c.149.185.156.45.01.644L8.4 15.3a.5.5 0 0 1-.8 0L.114 5.318a.53.53 0 0 1 .01-.644zm11.386 3.785-1.806-2.41-.776 2.413zm-3.633.004.961-2.989H4.186l.963 2.995zM5.47 5.495 8 13.366l2.532-7.876zm-1.371-.999-.78-2.422-1.818 2.425zM1.499 5.5l5.113 6.817-2.192-6.82zm7.889 6.817 5.123-6.83-2.928.002z"/>' },
+  { key: 'smile', label: 'Smiley', body: '<path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16M4.285 9.567a.5.5 0 0 1 .683.183A3.5 3.5 0 0 0 8 11.5a3.5 3.5 0 0 0 3.032-1.75.5.5 0 1 1 .866.5A4.5 4.5 0 0 1 8 12.5a4.5 4.5 0 0 1-3.898-2.25.5.5 0 0 1 .183-.683M7 6.5C7 7.328 6.552 8 6 8s-1-.672-1-1.5S5.448 5 6 5s1 .672 1 1.5m4 0c0 .828-.448 1.5-1 1.5s-1-.672-1-1.5S9.448 5 10 5s1 .672 1 1.5"/>' },
+  { key: 'sunglasses', label: 'Cool', body: '<path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16M4.285 9.567a.5.5 0 0 1 .683.183A3.5 3.5 0 0 0 8 11.5a3.5 3.5 0 0 0 3.032-1.75.5.5 0 1 1 .866.5A4.5 4.5 0 0 1 8 12.5a4.5 4.5 0 0 1-3.898-2.25.5.5 0 0 1 .183-.683M2.31 5.243A1 1 0 0 1 3.28 4H6a1 1 0 0 1 1 1v.116A4.2 4.2 0 0 1 8 5c.35 0 .69.04 1 .116V5a1 1 0 0 1 1-1h2.72a1 1 0 0 1 .97 1.243l-.311 1.242A2 2 0 0 1 11.439 8H11a2 2 0 0 1-1.994-1.839A3 3 0 0 0 8 6c-.393 0-.74.064-1.006.161A2 2 0 0 1 5 8h-.438a2 2 0 0 1-1.94-1.515z"/>' },
+];
+
+/** Default icon used by pins without a per-pin override */
+const EP_DEFAULT_ICON = { kind: 'preset', value: 'pushpin' };
+
+/**
+ * Returns the preset entry for a key, falling back to the pushpin default for
+ * unknown keys (e.g. presets removed across versions, corrupt storage).
+ * @param {string} key
+ * @returns {{key: string, label: string, body: string}}
+ */
+function getPresetIcon(key) {
+  return EP_ICON_PRESETS.find(p => p.key === key) || EP_ICON_PRESETS[0];
+}
+
+/**
+ * Normalizes a user-entered emoji string: trims and caps codepoint length so a
+ * single glyph (incl. ZWJ sequences like the black cat) survives but long text
+ * cannot be injected as an "icon".
+ * @param {string} str
+ * @returns {string}
+ */
+function normalizeEmoji(str) {
+  return Array.from((str || '').trim()).slice(0, 8).join('');
+}
+
 /** LocalStorage key for EP config */
 const EP_CONFIG_KEY = 'enhanced-pins-config';
 
@@ -113,7 +156,8 @@ const EP_DEFAULT_CONFIG = {
   sortMode: 'custom',
   maxVisiblePins: 0,
   shortcutsEnabled: false,
-  shortcuts: { ...EP_DEFAULT_SHORTCUTS }
+  shortcuts: { ...EP_DEFAULT_SHORTCUTS },
+  defaultIcon: { ...EP_DEFAULT_ICON }
 };
 
 /** View mode constants */
@@ -572,6 +616,11 @@ function showSettingsModal() {
       </div>
     </div>
     <div class="ep-settings-section">
+      <h3 class="ep-settings-title">Pin Icon</h3>
+      <p class="ep-settings-hint">Default marker shown next to each pin. Override per-pin from a pin's right-click menu.</p>
+      <div class="ep-default-icon-mount"></div>
+    </div>
+    <div class="ep-settings-section">
       <h3 class="ep-settings-title">Keyboard Shortcuts</h3>
       <div class="ep-toggle-options">
         <label class="ep-toggle-option">
@@ -729,6 +778,20 @@ function showSettingsModal() {
     });
   });
 
+  const iconMount = content.querySelector('.ep-default-icon-mount');
+  if (iconMount) {
+    const defaultPicker = buildIconPicker(config.defaultIcon || EP_DEFAULT_ICON, {
+      allowDefault: false,
+      onChange: (icon) => {
+        const newConfig = loadConfig();
+        newConfig.defaultIcon = icon || { ...EP_DEFAULT_ICON };
+        saveConfig(newConfig);
+        renderPins();
+      }
+    });
+    iconMount.appendChild(defaultPicker.el);
+  }
+
   Spicetify.PopupModal.display({
     title: 'Enhanced Pins Settings',
     content: content,
@@ -749,6 +812,153 @@ function escapeHtml(str) {
   const div = document.createElement('div');
   div.textContent = str;
   return div.innerHTML;
+}
+
+/**
+ * Resolves the effective icon descriptor for a pin: its own override, else the
+ * global default, else the built-in pushpin.
+ * @param {PinnedItem} pin
+ * @param {Object} config
+ * @returns {{kind: string, value: string}}
+ */
+function resolvePinIcon(pin, config) {
+  const icon = pin?.icon || config?.defaultIcon || EP_DEFAULT_ICON;
+  if (icon && (icon.kind === 'preset' || icon.kind === 'emoji') && icon.value) return icon;
+  return EP_DEFAULT_ICON;
+}
+
+/**
+ * Renders an icon descriptor as the subtitle marker HTML. Presets use trusted
+ * inline SVG; emoji values are escaped.
+ * @param {{kind: string, value: string}} icon
+ * @returns {string}
+ */
+function renderPinIconHTML(icon) {
+  if (icon.kind === 'emoji') {
+    return `<span class="ep-item-pin-icon ep-item-pin-emoji" aria-hidden="true">${escapeHtml(icon.value)}</span>`;
+  }
+  const preset = getPresetIcon(icon.value);
+  return `<svg class="ep-item-pin-icon" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">${preset.body}</svg>`;
+}
+
+/**
+ * Builds a reusable icon picker UI: a grid of preset buttons, an optional
+ * "Default" tile, and an emoji input. Selection state lives in the returned
+ * `getValue`/`setValue` accessors so callers decide when to commit.
+ * @param {{kind: string, value: string}|null} current - current icon, or null for "default"
+ * @param {{allowDefault?: boolean, onChange?: (icon: {kind:string,value:string}|null) => void}} [opts]
+ * @returns {{el: HTMLElement, getValue: () => ({kind:string,value:string}|null)}}
+ */
+function buildIconPicker(current, opts = {}) {
+  const { allowDefault = false, onChange } = opts;
+  let selected = current ? { ...current } : null;
+
+  const el = document.createElement('div');
+  el.className = 'ep-icon-picker';
+
+  const grid = document.createElement('div');
+  grid.className = 'ep-icon-grid';
+
+  /** @type {HTMLButtonElement[]} */
+  const tiles = [];
+  const refreshSelected = () => {
+    tiles.forEach(t => {
+      const isSel =
+        (t.dataset.kind === 'default' && selected === null) ||
+        (t.dataset.kind === 'preset' && selected?.kind === 'preset' && selected.value === t.dataset.value) ||
+        (t.dataset.kind === 'emoji' && selected?.kind === 'emoji');
+      t.classList.toggle('ep-icon-selected', isSel);
+    });
+  };
+  const choose = (value) => {
+    selected = value;
+    refreshSelected();
+    onChange?.(selected);
+  };
+
+  if (allowDefault) {
+    const def = document.createElement('button');
+    def.type = 'button';
+    def.className = 'ep-icon-option';
+    def.dataset.kind = 'default';
+    def.title = 'Use global default';
+    def.innerHTML = '<span class="ep-icon-default-label">Default</span>';
+    def.addEventListener('click', () => choose(null));
+    grid.appendChild(def);
+    tiles.push(def);
+  }
+
+  EP_ICON_PRESETS.forEach(preset => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'ep-icon-option';
+    btn.dataset.kind = 'preset';
+    btn.dataset.value = preset.key;
+    btn.title = preset.label;
+    btn.innerHTML = `<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">${preset.body}</svg>`;
+    btn.addEventListener('click', () => choose({ kind: 'preset', value: preset.key }));
+    grid.appendChild(btn);
+    tiles.push(btn);
+  });
+
+  el.appendChild(grid);
+
+  const emojiRow = document.createElement('div');
+  emojiRow.className = 'ep-icon-emoji-row';
+  emojiRow.innerHTML = `
+    <span class="ep-icon-emoji-label">Or use an emoji</span>
+    <input type="text" class="ep-icon-emoji-input" maxlength="16" placeholder="😀">`;
+  const emojiInput = emojiRow.querySelector('.ep-icon-emoji-input');
+  if (selected?.kind === 'emoji') emojiInput.value = selected.value;
+  const emojiTile = document.createElement('button');
+  emojiTile.type = 'button';
+  emojiTile.dataset.kind = 'emoji';
+  emojiTile.style.display = 'none';
+  tiles.push(emojiTile); // tracked only for selected-state highlighting
+  emojiInput.addEventListener('input', () => {
+    const val = normalizeEmoji(emojiInput.value);
+    if (val) choose({ kind: 'emoji', value: val });
+  });
+  el.appendChild(emojiRow);
+
+  refreshSelected();
+
+  return { el, getValue: () => selected };
+}
+
+/**
+ * Opens a modal to set a per-pin icon override. Saving with "Default" selected
+ * removes the override so the pin follows the global default.
+ * @param {PinnedItem} pin
+ */
+function showIconPickerModal(pin) {
+  const picker = buildIconPicker(pin.icon || null, { allowDefault: true });
+
+  const content = document.createElement('div');
+  content.className = 'ep-icon-modal';
+  content.appendChild(picker.el);
+
+  const actions = document.createElement('div');
+  actions.className = 'ep-icon-actions';
+  actions.innerHTML = `
+    <button type="button" class="ep-delete-cancel">Cancel</button>
+    <button type="button" class="ep-edit-save">Save</button>`;
+  actions.querySelector('.ep-delete-cancel').addEventListener('click', () => Spicetify.PopupModal.hide());
+  actions.querySelector('.ep-edit-save').addEventListener('click', () => {
+    const value = picker.getValue();
+    const pins = loadPins();
+    const target = pins.find(p => p.uri === pin.uri);
+    if (target) {
+      if (value) target.icon = value;
+      else delete target.icon;
+      savePins(pins);
+      renderPins();
+    }
+    Spicetify.PopupModal.hide();
+  });
+  content.appendChild(actions);
+
+  Spicetify.PopupModal.display({ title: `Icon for ${pin.name}`, content, isLarge: false });
 }
 
 /**
@@ -1032,6 +1242,7 @@ function createContextMenu() {
     <li><button data-action="pin-to-top" role="menuitem"><span class="ep-ctx-label">Move to top</span></button></li>
     <li><button data-action="pin-to-bottom" role="menuitem"><span class="ep-ctx-label">Move to bottom</span></button></li>
     <li><button data-action="unpin" role="menuitem"><span class="ep-ctx-label">Enhanced Unpin</span></button></li>
+    <li><button data-action="change-icon" role="menuitem"><span class="ep-ctx-label">Change icon</span></button></li>
     <li class="ep-ctx-divider" role="separator"></li>
     <li><button data-action="copy-link" role="menuitem"><span class="ep-ctx-label">Copy Link</span></button></li>
     <li><button data-action="copy-uri" role="menuitem"><span class="ep-ctx-label">Copy Spotify URI</span></button></li>
@@ -1402,6 +1613,11 @@ function setupContextMenuActions() {
         performUnpin(pin.uri);
         break;
 
+      case 'change-icon':
+        hideContextMenu();
+        showIconPickerModal(pin);
+        return;
+
       case 'pin-to-top':
         movePinToEdge(pin.uri, 'top');
         break;
@@ -1569,7 +1785,7 @@ function renderPins() {
       <div class="ep-item-text">
         <p class="ep-item-title">${escapeHtml(pin.name)}</p>
         <p class="ep-item-subtitle">
-          <svg class="ep-item-pin-icon" viewBox="0 0 16 16" fill="currentColor"><path d="${PIN_SVG_PATH}"></path></svg>
+          ${renderPinIconHTML(resolvePinIcon(pin, config))}
           <span class="ep-subtitle-full">${escapeHtml(subtitle)}</span>
           <span class="ep-subtitle-short">${escapeHtml(pin.owner || typeLabel)}</span>
         </p>
@@ -2125,6 +2341,91 @@ function injectStyles() {
       color: var(--text-bright-accent, #107434);
     }
 
+    .ep-item-pin-emoji {
+      width: auto;
+      min-width: 12px;
+      height: 12px;
+      font-size: 11px;
+      line-height: 12px;
+      text-align: center;
+    }
+
+    /* Icon picker (settings default + per-pin modal) */
+    .ep-icon-picker {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .ep-icon-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
+      gap: 8px;
+    }
+
+    .ep-icon-option {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 44px;
+      border: 1px solid var(--spice-button-disabled, #404040);
+      border-radius: 8px;
+      background: var(--spice-card, rgba(255, 255, 255, 0.05));
+      color: var(--spice-text, #fff);
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s, transform 0.1s;
+    }
+
+    .ep-icon-option:hover {
+      background: var(--spice-highlight-elevated, rgba(255, 255, 255, 0.1));
+      transform: scale(1.05);
+    }
+
+    .ep-icon-option svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    .ep-icon-option.ep-icon-selected {
+      border-color: var(--spice-button-active, var(--text-bright-accent, #1ed760));
+      background: var(--spice-highlight-elevated, rgba(30, 215, 96, 0.15));
+    }
+
+    .ep-icon-default-label {
+      font-size: 0.6875rem;
+      font-weight: 600;
+      color: var(--spice-subtext, #b3b3b3);
+    }
+
+    .ep-icon-emoji-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .ep-icon-emoji-label {
+      font-size: 0.8125rem;
+      color: var(--spice-subtext, #b3b3b3);
+    }
+
+    .ep-icon-emoji-input {
+      width: 64px;
+      padding: 6px 8px;
+      font-size: 1rem;
+      text-align: center;
+      border: 1px solid var(--spice-button-disabled, #404040);
+      border-radius: 6px;
+      background: var(--spice-card, rgba(0, 0, 0, 0.3));
+      color: var(--spice-text, #fff);
+    }
+
+    .ep-icon-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+      margin-top: 16px;
+    }
+
     /* Play/pause overlay on album art */
     .ep-art-overlay {
       position: absolute;
@@ -2228,6 +2529,12 @@ function injectStyles() {
       font-size: 14px;
       font-weight: 600;
       margin: 0 0 8px 0;
+    }
+
+    .ep-settings-hint {
+      color: var(--spice-subtext, #b3b3b3);
+      font-size: 0.8125rem;
+      margin: 0 0 10px 0;
     }
 
     .ep-toggle-options {

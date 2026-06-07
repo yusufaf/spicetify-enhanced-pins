@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-06-06
+
+### Added
+- Customizable pin marker icon: choose from a bundled preset set (pushpin, star, heart, lightning, fire, gem, and goofy faces) or use any emoji
+- Per-pin icon override via the "Change icon" context menu action (available for all pin types, not just owned playlists)
+- Global default icon picker in the settings modal ("Pin Icon" section); pins without an override follow it
+- Icon choices are included in JSON export/import; unknown/legacy values fall back to the pushpin default
+
 ## [1.1.1] - 2026-04-25
 
 ### Added
@@ -36,6 +44,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Native sidebar integration with artwork and subtitles
 - Active item highlighting synced with current playback/navigation
 
+[1.2.0]: https://github.com/yusufaf/spicetify-enhanced-pins/releases/tag/v1.2.0
 [1.1.1]: https://github.com/yusufaf/spicetify-enhanced-pins/releases/tag/v1.1.1
 [1.1.0]: https://github.com/yusufaf/spicetify-enhanced-pins/releases/tag/v1.1.0
 [1.0.0]: https://github.com/yusufaf/spicetify-enhanced-pins/releases/tag/v1.0.0
