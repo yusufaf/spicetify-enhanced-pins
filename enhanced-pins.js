@@ -88,6 +88,9 @@ const SPEAKER_SVG_PATH_2 = 'M16 8a5.75 5.75 0 0 1-4.5 5.614v-1.55a4.252 4.252 0 
 /** Gear/settings icon SVG path (16x16 viewBox, Bootstrap Icons gear-fill) */
 const GEAR_SVG_PATH = 'M9.405 1.05c-.413-1.4-2.397-1.4-2.81 0l-.1.34a1.464 1.464 0 0 1-2.105.872l-.31-.17c-1.283-.698-2.686.705-1.987 1.987l.169.311c.446.82.023 1.841-.872 2.105l-.34.1c-1.4.413-1.4 2.397 0 2.81l.34.1a1.464 1.464 0 0 1 .872 2.105l-.17.31c-.698 1.283.705 2.686 1.987 1.987l.311-.169a1.464 1.464 0 0 1 2.105.872l.1.34c.413 1.4 2.397 1.4 2.81 0l.1-.34a1.464 1.464 0 0 1 2.105-.872l.31.17c1.283.698 2.686-.705 1.987-1.987l-.169-.311a1.464 1.464 0 0 1 .872-2.105l.34-.1c1.4-.413 1.4-2.397 0-2.81l-.34-.1a1.464 1.464 0 0 1-.872-2.105l.17-.31c.698-1.283-.705-2.686-1.987-1.987l-.311.169a1.464 1.464 0 0 1-2.105-.872zM8 10.93a2.929 2.929 0 1 1 0-5.858 2.929 2.929 0 0 1 0 5.858z';
 
+/** GitHub mark icon SVG path (16x16 viewBox, Bootstrap Icons github, same source as GEAR_SVG_PATH) */
+const GITHUB_SVG_PATH = 'M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z';
+
 /**
  * Selectable pin marker icons. Each entry's `body` is trusted inner-SVG markup
  * (authored here, never user input) rendered inside a 16x16 viewBox.
@@ -136,6 +139,14 @@ const EP_CONFIG_KEY = 'enhanced-pins-config';
 
 /** Current export schema version */
 const EP_EXPORT_SCHEMA_VERSION = 1;
+
+/** Extension version, shown in the settings modal footer. Kept in sync with the VERSION banner by release-please. */
+// x-release-please-start-version
+const EP_VERSION = '1.2.0';
+// x-release-please-end-version
+
+/** GitHub repo slug, used to build the "report an issue" link in the settings modal footer */
+const EP_GITHUB_REPO = 'yusufaf/spicetify-enhanced-pins';
 
 /** Default keyboard shortcut bindings. Format: "Modifier+...+Code" using KeyboardEvent.code for layout independence */
 const EP_DEFAULT_SHORTCUTS = {
@@ -679,6 +690,12 @@ function showSettingsModal() {
         <button type="button" class="ep-settings-btn ep-btn-secondary" data-action="import">Import from JSON…</button>
         <input type="file" class="ep-import-file" accept="application/json,.json" style="display:none;">
       </div>
+    </div>
+    <div class="ep-settings-footer">
+      <span class="ep-settings-version">v${EP_VERSION}</span>
+      <a class="ep-settings-github-link" href="https://github.com/${EP_GITHUB_REPO}/issues/new" target="_blank" rel="noopener noreferrer" title="Report an issue on GitHub">
+        <svg viewBox="0 0 16 16" class="ep-settings-icon"><path d="${GITHUB_SVG_PATH}"/></svg>
+      </a>
     </div>
   `;
 
@@ -2625,6 +2642,39 @@ function injectStyles() {
     }
     .main-trackCreditsModal-mainSection:has(.ep-settings-modal) {
       overflow-y: auto !important;
+    }
+
+    .ep-settings-footer {
+      position: sticky;
+      bottom: 0;
+      margin-top: 16px;
+      padding: 10px 0 2px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-top: 1px solid hsla(0, 0%, 100%, 0.1);
+      background: var(--background-elevated-base, var(--spice-card, #282828));
+    }
+
+    .ep-settings-version {
+      color: var(--spice-subtext, #b3b3b3);
+      font-size: 0.75rem;
+    }
+
+    .ep-settings-github-link {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--spice-subtext, #b3b3b3);
+    }
+
+    .ep-settings-github-link:hover {
+      color: var(--spice-text, #fff);
+    }
+
+    .ep-settings-github-link .ep-settings-icon {
+      width: 16px;
+      height: 16px;
     }
 
     .ep-settings-title {
