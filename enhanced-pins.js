@@ -159,7 +159,11 @@ const EP_DEFAULT_CONFIG = {
   maxVisiblePins: 0,
   shortcutsEnabled: false,
   shortcuts: { ...EP_DEFAULT_SHORTCUTS },
-  defaultIcon: { ...EP_DEFAULT_ICON }
+  defaultIcon: { ...EP_DEFAULT_ICON },
+  titleVisible: true,
+  titleText: 'Enhanced Pins',
+  titleFontSize: 11,
+  titleColor: '#b3b3b3'
 };
 
 /** View mode constants */
@@ -618,6 +622,31 @@ function showSettingsModal() {
       </div>
     </div>
     <div class="ep-settings-section">
+      <h3 class="ep-settings-title">Title</h3>
+      <div class="ep-toggle-options">
+        <label class="ep-toggle-option">
+          <input type="checkbox" name="titleVisible" ${config.titleVisible ? 'checked' : ''}>
+          <span class="ep-toggle-switch"></span>
+          <span class="ep-toggle-label">Show section title</span>
+        </label>
+        <label class="ep-toggle-option" style="cursor:default;">
+          <span class="ep-toggle-label" style="margin-right:12px;">Title text</span>
+          <input type="text" name="titleText" class="ep-settings-text" value="${escapeHtml(config.titleText)}" placeholder="Enhanced Pins" maxlength="60">
+        </label>
+        <label class="ep-toggle-option" style="cursor:default;">
+          <span class="ep-toggle-label" style="margin-right:12px;">Font size</span>
+          <input type="number" name="titleFontSize" class="ep-settings-number" value="${config.titleFontSize}" min="8" max="24">
+        </label>
+        <label class="ep-toggle-option" style="cursor:default;">
+          <span class="ep-toggle-label" style="margin-right:12px;">Color</span>
+          <input type="color" name="titleColor" class="ep-settings-color" value="${config.titleColor}">
+        </label>
+      </div>
+      <div class="ep-toggle-options" style="flex-direction:row;gap:8px;margin-top:8px;">
+        <button type="button" class="ep-settings-btn ep-btn-secondary" data-action="reset-title">Reset title settings</button>
+      </div>
+    </div>
+    <div class="ep-settings-section">
       <h3 class="ep-settings-title">Pin Icon</h3>
       <p class="ep-settings-hint">Default marker shown next to each pin. Override per-pin from a pin's right-click menu.</p>
       <div class="ep-default-icon-mount"></div>
@@ -666,7 +695,46 @@ function showSettingsModal() {
         const panel = content.querySelector('.ep-shortcut-bindings');
         if (panel) panel.style.display = e.target.checked ? 'flex' : 'none';
       }
+      if (e.target.name === 'titleVisible') {
+        renderPins();
+      }
     });
+  });
+
+  content.querySelectorAll('input[type="text"][name]').forEach(input => {
+    input.addEventListener('change', (e) => {
+      const newConfig = loadConfig();
+      newConfig[e.target.name] = e.target.value.slice(0, 60);
+      saveConfig(newConfig);
+      renderPins();
+    });
+  });
+
+  content.querySelectorAll('input[type="color"]').forEach(input => {
+    input.addEventListener('input', () => {
+      document.documentElement.style.setProperty('--ep-title-color', input.value);
+    });
+    input.addEventListener('change', (e) => {
+      const newConfig = loadConfig();
+      newConfig[e.target.name] = e.target.value;
+      saveConfig(newConfig);
+      applyTitleVars(newConfig);
+    });
+  });
+
+  content.querySelector('[data-action="reset-title"]')?.addEventListener('click', () => {
+    const newConfig = loadConfig();
+    newConfig.titleVisible = EP_DEFAULT_CONFIG.titleVisible;
+    newConfig.titleText = EP_DEFAULT_CONFIG.titleText;
+    newConfig.titleFontSize = EP_DEFAULT_CONFIG.titleFontSize;
+    newConfig.titleColor = EP_DEFAULT_CONFIG.titleColor;
+    saveConfig(newConfig);
+    content.querySelector('input[name="titleVisible"]').checked = newConfig.titleVisible;
+    content.querySelector('input[name="titleText"]').value = newConfig.titleText;
+    content.querySelector('input[name="titleFontSize"]').value = newConfig.titleFontSize;
+    content.querySelector('input[name="titleColor"]').value = newConfig.titleColor;
+    applyTitleVars(newConfig);
+    renderPins();
   });
 
   content.querySelectorAll('.ep-shortcut-record').forEach(btn => {
@@ -775,8 +843,12 @@ function showSettingsModal() {
       const newConfig = loadConfig();
       newConfig[e.target.name] = Math.max(0, parseInt(e.target.value) || 0);
       saveConfig(newConfig);
-      expandedView = false;
-      renderPins();
+      if (e.target.name === 'titleFontSize') {
+        applyTitleVars(newConfig);
+      } else {
+        expandedView = false;
+        renderPins();
+      }
     });
   });
 
@@ -814,6 +886,17 @@ function escapeHtml(str) {
   const div = document.createElement('div');
   div.textContent = str;
   return div.innerHTML;
+}
+
+/**
+ * Writes title font-size/color as CSS custom properties so live edits (e.g. dragging
+ * the color picker) repaint instantly without rebuilding the pins list.
+ * @param {Object} config
+ */
+function applyTitleVars(config) {
+  const root = document.documentElement;
+  root.style.setProperty('--ep-title-color', config.titleColor || EP_DEFAULT_CONFIG.titleColor);
+  root.style.setProperty('--ep-title-font-size', `${config.titleFontSize || EP_DEFAULT_CONFIG.titleFontSize}px`);
 }
 
 /**
@@ -1683,6 +1766,8 @@ function setupContextMenuDismissal() {
 function renderPins() {
   const pins = loadPins();
   currentPins = pins;
+  const config = loadConfig();
+  applyTitleVars(config);
 
   const existing = document.getElementById(EP_CONTAINER_ID);
   if (existing) existing.remove();
@@ -1699,7 +1784,6 @@ function renderPins() {
     : pins;
 
   // Sort and truncate
-  const config = loadConfig();
   const sortedPins = sortPins(filteredPins, config.sortMode);
   const maxVisible = config.maxVisiblePins;
   let displayPins = sortedPins;
@@ -1726,7 +1810,7 @@ function renderPins() {
   const header = document.createElement('div');
   header.className = 'ep-section-header';
   header.innerHTML = `
-    <span class="ep-section-label">Enhanced Pins (${pins.length})</span>
+    <span class="ep-section-label"${config.titleVisible ? '' : ' style="display:none;"'}>${escapeHtml(config.titleText || 'Enhanced Pins')} (${pins.length})</span>
     <button class="ep-settings-gear" title="Enhanced Pins Settings" type="button" draggable="false">
       <svg class="ep-settings-icon" viewBox="0 0 16 16" fill="currentColor" fill-rule="evenodd" aria-hidden="true">
         <path d="${GEAR_SVG_PATH}"></path>
@@ -2488,11 +2572,17 @@ function injectStyles() {
     }
 
     .ep-section-label {
-      color: var(--spice-subtext, var(--text-subdued, #b3b3b3));
-      font-size: 11px;
+      color: var(--ep-title-color, var(--spice-subtext, var(--text-subdued, #b3b3b3)));
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.1em;
+    }
+
+    /* !important required: Spotify has a global font-normalization rule
+       (a broad :not(...) selector) that sets font-size !important on
+       virtually every element. */
+    .ep-section-header .ep-section-label {
+      font-size: var(--ep-title-font-size, 11px) !important;
     }
 
     .ep-settings-gear {
@@ -2525,6 +2615,17 @@ function injectStyles() {
     /* Settings modal */
     .ep-settings-modal { padding: 8px 0; }
     .ep-settings-section { margin-bottom: 16px; }
+
+    /* Spicetify's isLarge PopupModal stretches its dialog to fill the whole
+       viewport regardless of content length; scope the cap to just our modal
+       (:has) so other isLarge modals in Spotify/other extensions are untouched. */
+    .main-embedWidgetGenerator-container:has(.ep-settings-modal) {
+      height: auto !important;
+      max-height: min(80vh, 720px) !important;
+    }
+    .main-trackCreditsModal-mainSection:has(.ep-settings-modal) {
+      overflow-y: auto !important;
+    }
 
     .ep-settings-title {
       color: var(--spice-text, #fff);
@@ -2841,6 +2942,33 @@ function injectStyles() {
     .ep-settings-number:focus {
       outline: none;
       border-color: var(--spice-button, #1db954);
+    }
+
+    /* Settings text input */
+    .ep-settings-text {
+      background: hsla(0, 0%, 100%, 0.1);
+      border: 1px solid transparent;
+      border-radius: 4px;
+      color: #fff;
+      font-size: 14px;
+      font-family: inherit;
+      padding: 6px 8px;
+      width: 140px;
+    }
+    .ep-settings-text:focus {
+      outline: none;
+      border-color: var(--spice-button, #1db954);
+    }
+
+    /* Settings color swatch */
+    .ep-settings-color {
+      width: 36px;
+      height: 28px;
+      padding: 2px;
+      border: 1px solid transparent;
+      border-radius: 4px;
+      background: transparent;
+      cursor: pointer;
     }
 
     /* Settings buttons (export/import/shortcut record) */
