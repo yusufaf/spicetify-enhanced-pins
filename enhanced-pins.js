@@ -60,16 +60,36 @@ const TYPE_LABEL_MAP = {
   'playlist-v2': 'Playlist',
   'album': 'Album',
   'show': 'Podcast',
-  'collection': 'Audiobook'
+  'collection': 'Playlist'
 };
 
-/** Map sidebar filter chip labels (lowercase) to allowed pin type sets */
+/**
+ * Maps sidebar filter chip labels (lowercase) to a predicate deciding whether
+ * a pin belongs under that chip. Plain Set-of-types isn't enough because
+ * pseudo-playlists (URI type `collection`) split across chips depending on
+ * category: Local Files and Liked Songs are Playlists-only, but Your
+ * Episodes shows under both Playlists and Podcasts in Spotify's own UI.
+ * Real audiobooks and podcasts both use URI type `show` with no further
+ * signal on the URI, so the Audiobooks and Podcasts chips are unavoidably
+ * conflated here — a pre-existing limitation, not introduced by this map.
+ */
 const FILTER_TYPE_MAP = {
-  'playlists': new Set(['playlist', 'playlist-v2']),
-  'albums': new Set(['album']),
-  'podcasts': new Set(['show']),
-  'podcasts & shows': new Set(['show']),
-  'audiobooks': new Set(['collection']),
+  'playlists': pin => pin.type === 'playlist' || pin.type === 'playlist-v2' || pin.type === 'collection',
+  'albums': pin => pin.type === 'album',
+  'podcasts': pin => pin.type === 'show' || getPseudoCategory(pin) === 'your-episodes',
+  'podcasts & shows': pin => pin.type === 'show' || getPseudoCategory(pin) === 'your-episodes',
+  'audiobooks': pin => pin.type === 'show',
+};
+
+/**
+ * Spotify's auto-generated library entries. URI type `collection`, identified
+ * by category (e.g. "spotify:collection:local-files") rather than a base62 id,
+ * so they need their own name/label lookup instead of the normal metadata fetch.
+ */
+const PSEUDO_COLLECTIONS = {
+  'tracks': { localeKey: 'sidebar.liked_songs', name: 'Liked Songs', label: 'Playlist', icon: 'heart' },
+  'your-episodes': { localeKey: 'sidebar.your_episodes', name: 'Your Episodes', label: 'Podcast', icon: 'bookmark' },
+  'local-files': { localeKey: 'local-files', name: 'Local Files', label: 'Local Files', icon: 'folder' },
 };
 
 /** Spotify's native pin icon SVG path */
@@ -84,6 +104,10 @@ const PAUSE_SVG_PATH = 'M5.7 3a.7.7 0 0 0-.7.7v16.6a.7.7 0 0 0 .7.7h2.6a.7.7 0 0
 /** Spotify speaker/volume icon paths (16x16 viewBox, two paths) */
 const SPEAKER_SVG_PATH_1 = 'M10.016 1.125A.75.75 0 0 0 8.99.85l-6.925 4a3.64 3.64 0 0 0 0 6.299l6.925 4a.75.75 0 0 0 1.125-.65v-13a.75.75 0 0 0-.1-.375zM11.5 5.56a2.75 2.75 0 0 1 0 4.88z';
 const SPEAKER_SVG_PATH_2 = 'M16 8a5.75 5.75 0 0 1-4.5 5.614v-1.55a4.252 4.252 0 0 0 0-8.127v-1.55A5.75 5.75 0 0 1 16 8';
+
+/** Bootstrap Icons bookmark-fill / folder-fill paths (16x16 viewBox), used as artwork placeholders for pseudo-playlist pins */
+const BOOKMARK_SVG_PATH = 'M2 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v13.5a.5.5 0 0 1-.777.416L8 13.101l-5.223 2.815A.5.5 0 0 1 2 15.5z';
+const FOLDER_SVG_PATH = 'M9.828 3h3.982a2 2 0 0 1 1.992 2.181l-.638 7A2 2 0 0 1 13.174 14H2.825a2 2 0 0 1-1.991-1.819l-.637-7a2 2 0 0 1 .342-1.31L.5 3a2 2 0 0 1 2-2h3.672a2 2 0 0 1 1.414.586l.828.828A2 2 0 0 0 9.828 3M2.19 3h5.396l-.707-.707A1 1 0 0 0 6.172 2H2.5a1 1 0 0 0-1 .981z';
 
 /** Gear/settings icon SVG path (16x16 viewBox, Bootstrap Icons gear-fill) */
 const GEAR_SVG_PATH = 'M9.405 1.05c-.413-1.4-2.397-1.4-2.81 0l-.1.34a1.464 1.464 0 0 1-2.105.872l-.31-.17c-1.283-.698-2.686.705-1.987 1.987l.169.311c.446.82.023 1.841-.872 2.105l-.34.1c-1.4.413-1.4 2.397 0 2.81l.34.1a1.464 1.464 0 0 1 .872 2.105l-.17.31c-.698 1.283.705 2.686 1.987 1.987l.311-.169a1.464 1.464 0 0 1 2.105.872l.1.34c.413 1.4 2.397 1.4 2.81 0l.1-.34a1.464 1.464 0 0 1 2.105-.872l.31.17c1.283.698 2.686-.705 1.987-1.987l-.169-.311a1.464 1.464 0 0 1 .872-2.105l.34-.1c1.4-.413 1.4-2.397 0-2.81l-.34-.1a1.464 1.464 0 0 1-.872-2.105l.17-.31c.698-1.283-.705-2.686-1.987-1.987l-.311.169a1.464 1.464 0 0 1-2.105-.872zM8 10.93a2.929 2.929 0 1 1 0-5.858 2.929 2.929 0 0 1 0 5.858z';
@@ -122,6 +146,17 @@ const EP_DEFAULT_ICON = { kind: 'preset', value: 'pushpin' };
 function getPresetIcon(key) {
   return EP_ICON_PRESETS.find(p => p.key === key) || EP_ICON_PRESETS[0];
 }
+
+/**
+ * Maps a PSEUDO_COLLECTIONS `icon` key to inner-SVG markup, for the pin's
+ * artwork placeholder. Reuses the existing "heart" pin-icon preset rather
+ * than duplicating its path.
+ */
+const PSEUDO_COLLECTION_ICON_BODY = {
+  heart: getPresetIcon('heart').body,
+  bookmark: `<path d="${BOOKMARK_SVG_PATH}"/>`,
+  folder: `<path d="${FOLDER_SVG_PATH}"/>`,
+};
 
 /**
  * Normalizes a user-entered emoji string: trims and caps codepoint length so a
@@ -409,6 +444,17 @@ async function fetchItemMetadata(uri) {
       };
     } catch (e) {
       console.warn('[Enhanced Pins] CosmosAsync show fallback', e);
+    }
+  }
+
+  // Auto-generated library entries (Liked Songs, Your Episodes, Local Files) -
+  // identified by category rather than a base62 id, so no API lookup applies.
+  if (type === 'collection') {
+    const entry = PSEUDO_COLLECTIONS[uriObj.category];
+    if (entry) {
+      const localized = Spicetify.Locale?.get?.(entry.localeKey);
+      const name = (localized && localized !== entry.localeKey) ? localized : entry.name;
+      return { name, imageUrl: null, owner: '' };
     }
   }
 
@@ -906,6 +952,64 @@ function escapeHtml(str) {
 }
 
 /**
+ * Human-readable type label for a pin's subtitle/radio menu, e.g. "Playlist".
+ * Pseudo-playlists (Liked Songs, Your Episodes, Local Files) override the
+ * generic "collection" label with their own.
+ * @param {PinnedItem} pin
+ * @returns {string}
+ */
+function getTypeLabel(pin, pseudoEntry) {
+  if (pin.type === 'collection') {
+    const entry = pseudoEntry !== undefined ? pseudoEntry : getPseudoCollectionEntry(pin);
+    if (entry) return entry.label;
+  }
+  return TYPE_LABEL_MAP[pin.type] || 'Playlist';
+}
+
+/**
+ * Returns a collection-type pin's URI category (e.g. "local-files"), or null
+ * for non-pseudo-playlist pins.
+ * @param {PinnedItem} pin
+ * @returns {string|null}
+ */
+function getPseudoCategory(pin) {
+  if (pin.type !== 'collection') return null;
+  try {
+    return Spicetify.URI.fromString(pin.uri).category || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Looks up a pin's PSEUDO_COLLECTIONS entry, if it is one.
+ * @param {PinnedItem} pin
+ * @returns {{localeKey: string, name: string, label: string, icon: string}|null}
+ */
+function getPseudoCollectionEntry(pin) {
+  const category = getPseudoCategory(pin);
+  return category ? (PSEUDO_COLLECTIONS[category] || null) : null;
+}
+
+/**
+ * Renders the artwork placeholder for a pin. Pseudo-playlists (no image URL)
+ * get a distinguishing glyph instead of a blank tile.
+ * @param {PinnedItem} pin
+ * @param {{icon: string}|null} [pseudoEntry] - precomputed getPseudoCollectionEntry(pin), to avoid re-parsing the URI
+ * @returns {string}
+ */
+function renderArtPlaceholderHTML(pin, pseudoEntry) {
+  const entry = pseudoEntry !== undefined ? pseudoEntry : getPseudoCollectionEntry(pin);
+  const body = entry && PSEUDO_COLLECTION_ICON_BODY[entry.icon];
+  if (body) {
+    return `<div class="ep-item-img ep-item-img--placeholder ep-item-img--pseudo">
+      <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">${body}</svg>
+    </div>`;
+  }
+  return '<div class="ep-item-img ep-item-img--placeholder"></div>';
+}
+
+/**
  * Writes title font-size/color as CSS custom properties so live edits (e.g. dragging
  * the color picker) repaint instantly without rebuilding the pins list.
  * @param {Object} config
@@ -1064,14 +1168,26 @@ function showIconPickerModal(pin) {
 }
 
 /**
+ * Resolves the in-app route for a URI. Prefers Spicetify's own URI-to-path
+ * resolver (handles id-less URIs like "spotify:collection:local-files"),
+ * falling back to the id-based path map for older Spicetify versions.
+ * @param {string} uri
+ * @returns {string}
+ */
+function pinPath(uri) {
+  const uriObj = Spicetify.URI.fromString(uri);
+  const path = uriObj.toURLPath?.(true);
+  if (path) return path;
+  const id = uriObj.id || uriObj._base62Id;
+  return (TYPE_PATH_MAP[uriObj.type] || '/playlist/') + id;
+}
+
+/**
  * Navigates to a pinned item's page
  * @param {PinnedItem} pin
  */
 function navigateToPin(pin) {
-  const uriObj = Spicetify.URI.fromString(pin.uri);
-  const id = uriObj.id || uriObj._base62Id;
-  const pathPrefix = TYPE_PATH_MAP[uriObj.type] || '/playlist/';
-  Spicetify.Platform.History.push(pathPrefix + id);
+  Spicetify.Platform.History.push(pinPath(pin.uri));
 }
 
 /**
@@ -1254,8 +1370,9 @@ function detectViewMode() {
 /**
  * Detects the active entity type filter from sidebar filter chips.
  * When the user selects a filter like "Audiobooks" or "Playlists", only
- * enhanced pins of that type should be shown.
- * @returns {Set<string>|null} Set of allowed pin types, or null if no type filter active
+ * enhanced pins matching that chip should be shown.
+ * @returns {{key: string, matches: (pin: PinnedItem) => boolean}|null} the active chip's
+ *   label (as a stable cache key) and its match predicate, or null if no type filter active
  */
 function getActiveTypeFilter() {
   // Filter chips are Encore LegacyChip components inside the sidebar nav bar,
@@ -1275,7 +1392,7 @@ function getActiveTypeFilter() {
   for (const chip of chips) {
     if (chip.getAttribute('aria-checked') === 'true') {
       const label = (chip.getAttribute('aria-label') || '').toLowerCase();
-      if (FILTER_TYPE_MAP[label]) return FILTER_TYPE_MAP[label];
+      if (FILTER_TYPE_MAP[label]) return { key: label, matches: FILTER_TYPE_MAP[label] };
     }
   }
 
@@ -1289,7 +1406,7 @@ function getActiveTypeFilter() {
   }
 
   if (typeChips.length === 1) {
-    return FILTER_TYPE_MAP[typeChips[0]];
+    return { key: typeChips[0], matches: FILTER_TYPE_MAP[typeChips[0]] };
   }
 
   return null;
@@ -1306,6 +1423,8 @@ let ctxMenuTargetUri = null;
 function uriToUrl(uri) {
   try {
     const uriObj = Spicetify.URI.fromString(uri);
+    const url = uriObj.toURL?.();
+    if (url) return url;
     const type = uriObj.type === 'playlist-v2' ? 'playlist' : uriObj.type;
     const id = uriObj.id || uriObj._base62Id;
     return `https://open.spotify.com/${type}/${id}`;
@@ -1330,17 +1449,17 @@ function createContextMenu() {
     <li><button data-action="shuffle" role="menuitem"><span class="ep-ctx-label">Shuffle Play</span></button></li>
     <li><button data-action="queue" role="menuitem"><span class="ep-ctx-label">Add to Queue</span></button></li>
     <li><button data-action="jam" role="menuitem"><span class="ep-ctx-label">Start a Jam</span></button></li>
-    <li class="ep-ctx-divider" role="separator"></li>
-    <li><button data-action="radio" role="menuitem"><span class="ep-ctx-label">Go to Radio</span></button></li>
+    <li class="ep-ctx-divider ep-ctx-real-entity" role="separator"></li>
+    <li class="ep-ctx-real-entity"><button data-action="radio" role="menuitem"><span class="ep-ctx-label">Go to Radio</span></button></li>
     <li class="ep-ctx-divider ep-ctx-owner" role="separator"></li>
     <li class="ep-ctx-owner"><button data-action="edit" role="menuitem"><span class="ep-ctx-label">Edit details</span></button></li>
     <li class="ep-ctx-owner"><button data-action="delete" role="menuitem"><span class="ep-ctx-label">Delete</span></button></li>
-    <li class="ep-ctx-divider" role="separator"></li>
-    <li><button data-action="download" role="menuitem"><span class="ep-ctx-label">Download</span></button></li>
+    <li class="ep-ctx-divider ep-ctx-real-entity" role="separator"></li>
+    <li class="ep-ctx-real-entity"><button data-action="download" role="menuitem"><span class="ep-ctx-label">Download</span></button></li>
     <li class="ep-ctx-divider ep-ctx-owner" role="separator"></li>
     <li class="ep-ctx-owner"><button data-action="visibility" role="menuitem"><span class="ep-ctx-label">Make private</span></button></li>
-    <li class="ep-ctx-divider" role="separator"></li>
-    <li><button data-action="native-pin" role="menuitem"><span class="ep-ctx-label">Pin playlist</span></button></li>
+    <li class="ep-ctx-divider ep-ctx-real-entity" role="separator"></li>
+    <li class="ep-ctx-real-entity"><button data-action="native-pin" role="menuitem"><span class="ep-ctx-label">Pin playlist</span></button></li>
     <li><button data-action="pin-to-top" role="menuitem"><span class="ep-ctx-label">Move to top</span></button></li>
     <li><button data-action="pin-to-bottom" role="menuitem"><span class="ep-ctx-label">Move to bottom</span></button></li>
     <li><button data-action="unpin" role="menuitem"><span class="ep-ctx-label">Enhanced Unpin</span></button></li>
@@ -1373,8 +1492,7 @@ async function showContextMenu(e, pin) {
   // Update radio label based on type
   const radioLabel = menu.querySelector('[data-action="radio"] .ep-ctx-label');
   if (radioLabel) {
-    const typeLabel = TYPE_LABEL_MAP[pin.type] || 'Playlist';
-    radioLabel.textContent = `Go to ${typeLabel} Radio`;
+    radioLabel.textContent = `Go to ${getTypeLabel(pin)} Radio`;
   }
 
   // Show "Move to top/bottom" only in custom sort mode
@@ -1387,6 +1505,17 @@ async function showContextMenu(e, pin) {
 
   // Hide owner-only items by default (shown after async ownership check)
   menu.querySelectorAll('.ep-ctx-owner').forEach(el => { el.style.display = 'none'; });
+
+  // Pseudo-playlists (Liked Songs, Your Episodes, Local Files) have no radio
+  // station, no offline download, and can't be native-pinned or (for Local
+  // Files specifically) linked to a public page.
+  const isPseudoCollection = pin.type === 'collection';
+  menu.querySelectorAll('.ep-ctx-real-entity').forEach(el => { el.style.display = isPseudoCollection ? 'none' : ''; });
+  const copyLinkLi = menu.querySelector('[data-action="copy-link"]')?.closest('li');
+  if (copyLinkLi) {
+    const uriObj = Spicetify.URI.fromString(pin.uri);
+    copyLinkLi.style.display = (isPseudoCollection && uriObj.category === 'local-files') ? 'none' : '';
+  }
 
   // Show and measure for viewport clamping
   menu.style.display = 'block';
@@ -1797,7 +1926,7 @@ function renderPins() {
   // Filter pins based on active sidebar entity type filter
   const activeFilter = getActiveTypeFilter();
   const filteredPins = activeFilter
-    ? pins.filter(pin => activeFilter.has(pin.type))
+    ? pins.filter(pin => activeFilter.matches(pin))
     : pins;
 
   // Sort and truncate
@@ -1816,7 +1945,7 @@ function renderPins() {
   container.id = EP_CONTAINER_ID;
   container.className = `ep-view-${viewMode}`;
   container.dataset.viewMode = viewMode;
-  container.dataset.filterKey = activeFilter ? [...activeFilter].sort().join(',') : '';
+  container.dataset.filterKey = activeFilter ? activeFilter.key : '';
 
   const section = document.createElement('div');
   section.className = 'ep-section';
@@ -1866,7 +1995,8 @@ function renderPins() {
   const clickTimers = {};
 
   displayPins.forEach(pin => {
-    const typeLabel = TYPE_LABEL_MAP[pin.type] || 'Playlist';
+    const pseudoEntry = getPseudoCollectionEntry(pin);
+    const typeLabel = getTypeLabel(pin, pseudoEntry);
     const subtitle = pin.owner ? `${typeLabel} \u2022 ${pin.owner}` : typeLabel;
 
     const item = document.createElement('div');
@@ -1880,7 +2010,7 @@ function renderPins() {
       <div class="ep-item-art">
         ${pin.imageUrl
           ? `<img class="ep-item-img" src="${escapeHtml(pin.imageUrl)}" alt="" draggable="false" loading="lazy">`
-          : '<div class="ep-item-img ep-item-img--placeholder"></div>'}
+          : renderArtPlaceholderHTML(pin, pseudoEntry)}
         <button class="ep-art-overlay" aria-label="Play">
           <svg viewBox="0 0 24 24" fill="currentColor"><path d="${PLAY_SVG_PATH}"></path></svg>
         </button>
@@ -2330,7 +2460,7 @@ function setupSidebarObserver() {
 
       // Check if sidebar filter changed
       const currentFilter = getActiveTypeFilter();
-      const currentFilterKey = currentFilter ? [...currentFilter].sort().join(',') : '';
+      const currentFilterKey = currentFilter ? currentFilter.key : '';
       const prevFilterKey = epContainer?.dataset.filterKey ?? '';
       const filterChanged = currentFilterKey !== prevFilterKey;
 
@@ -2403,6 +2533,18 @@ function injectStyles() {
 
     .ep-item-img--placeholder {
       background: hsla(0, 0%, 100%, 0.1);
+    }
+
+    .ep-item-img--pseudo {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .ep-item-img--pseudo svg {
+      width: 40%;
+      height: 40%;
+      color: var(--spice-subtext, #b3b3b3);
     }
 
     .ep-item-text {
