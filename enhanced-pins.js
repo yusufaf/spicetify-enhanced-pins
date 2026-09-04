@@ -63,13 +63,22 @@ const TYPE_LABEL_MAP = {
   'collection': 'Playlist'
 };
 
-/** Map sidebar filter chip labels (lowercase) to allowed pin type sets */
+/**
+ * Maps sidebar filter chip labels (lowercase) to a predicate deciding whether
+ * a pin belongs under that chip. Plain Set-of-types isn't enough because
+ * pseudo-playlists (URI type `collection`) split across chips depending on
+ * category: Local Files and Liked Songs are Playlists-only, but Your
+ * Episodes shows under both Playlists and Podcasts in Spotify's own UI.
+ * Real audiobooks and podcasts both use URI type `show` with no further
+ * signal on the URI, so the Audiobooks and Podcasts chips are unavoidably
+ * conflated here — a pre-existing limitation, not introduced by this map.
+ */
 const FILTER_TYPE_MAP = {
-  'playlists': new Set(['playlist', 'playlist-v2', 'collection']),
-  'albums': new Set(['album']),
-  'podcasts': new Set(['show']),
-  'podcasts & shows': new Set(['show']),
-  'audiobooks': new Set(['show']),
+  'playlists': pin => pin.type === 'playlist' || pin.type === 'playlist-v2' || pin.type === 'collection',
+  'albums': pin => pin.type === 'album',
+  'podcasts': pin => pin.type === 'show' || getPseudoCategory(pin) === 'your-episodes',
+  'podcasts & shows': pin => pin.type === 'show' || getPseudoCategory(pin) === 'your-episodes',
+  'audiobooks': pin => pin.type === 'show',
 };
 
 /**
@@ -96,17 +105,9 @@ const PAUSE_SVG_PATH = 'M5.7 3a.7.7 0 0 0-.7.7v16.6a.7.7 0 0 0 .7.7h2.6a.7.7 0 0
 const SPEAKER_SVG_PATH_1 = 'M10.016 1.125A.75.75 0 0 0 8.99.85l-6.925 4a3.64 3.64 0 0 0 0 6.299l6.925 4a.75.75 0 0 0 1.125-.65v-13a.75.75 0 0 0-.1-.375zM11.5 5.56a2.75 2.75 0 0 1 0 4.88z';
 const SPEAKER_SVG_PATH_2 = 'M16 8a5.75 5.75 0 0 1-4.5 5.614v-1.55a4.252 4.252 0 0 0 0-8.127v-1.55A5.75 5.75 0 0 1 16 8';
 
-/** Bootstrap Icons heart-fill / bookmark-fill / folder-fill paths (16x16 viewBox), used as artwork placeholders for pseudo-playlist pins */
-const HEART_SVG_PATH = 'M8 1.314C12.438-3.248 23.534 4.735 8 15-7.534 4.736 3.562-3.248 8 1.314';
+/** Bootstrap Icons bookmark-fill / folder-fill paths (16x16 viewBox), used as artwork placeholders for pseudo-playlist pins */
 const BOOKMARK_SVG_PATH = 'M2 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v13.5a.5.5 0 0 1-.777.416L8 13.101l-5.223 2.815A.5.5 0 0 1 2 15.5z';
 const FOLDER_SVG_PATH = 'M9.828 3h3.982a2 2 0 0 1 1.992 2.181l-.638 7A2 2 0 0 1 13.174 14H2.825a2 2 0 0 1-1.991-1.819l-.637-7a2 2 0 0 1 .342-1.31L.5 3a2 2 0 0 1 2-2h3.672a2 2 0 0 1 1.414.586l.828.828A2 2 0 0 0 9.828 3M2.19 3h5.396l-.707-.707A1 1 0 0 0 6.172 2H2.5a1 1 0 0 0-1 .981z';
-
-/** Maps a PSEUDO_COLLECTIONS `icon` key to its SVG path, for the pin's artwork placeholder */
-const PSEUDO_COLLECTION_ICON_PATHS = {
-  heart: HEART_SVG_PATH,
-  bookmark: BOOKMARK_SVG_PATH,
-  folder: FOLDER_SVG_PATH,
-};
 
 /** Gear/settings icon SVG path (16x16 viewBox, Bootstrap Icons gear-fill) */
 const GEAR_SVG_PATH = 'M9.405 1.05c-.413-1.4-2.397-1.4-2.81 0l-.1.34a1.464 1.464 0 0 1-2.105.872l-.31-.17c-1.283-.698-2.686.705-1.987 1.987l.169.311c.446.82.023 1.841-.872 2.105l-.34.1c-1.4.413-1.4 2.397 0 2.81l.34.1a1.464 1.464 0 0 1 .872 2.105l-.17.31c-.698 1.283.705 2.686 1.987 1.987l.311-.169a1.464 1.464 0 0 1 2.105.872l.1.34c.413 1.4 2.397 1.4 2.81 0l.1-.34a1.464 1.464 0 0 1 2.105-.872l.31.17c1.283.698 2.686-.705 1.987-1.987l-.169-.311a1.464 1.464 0 0 1 .872-2.105l.34-.1c1.4-.413 1.4-2.397 0-2.81l-.34-.1a1.464 1.464 0 0 1-.872-2.105l.17-.31c.698-1.283-.705-2.686-1.987-1.987l-.311.169a1.464 1.464 0 0 1-2.105-.872zM8 10.93a2.929 2.929 0 1 1 0-5.858 2.929 2.929 0 0 1 0 5.858z';
@@ -145,6 +146,17 @@ const EP_DEFAULT_ICON = { kind: 'preset', value: 'pushpin' };
 function getPresetIcon(key) {
   return EP_ICON_PRESETS.find(p => p.key === key) || EP_ICON_PRESETS[0];
 }
+
+/**
+ * Maps a PSEUDO_COLLECTIONS `icon` key to inner-SVG markup, for the pin's
+ * artwork placeholder. Reuses the existing "heart" pin-icon preset rather
+ * than duplicating its path.
+ */
+const PSEUDO_COLLECTION_ICON_BODY = {
+  heart: getPresetIcon('heart').body,
+  bookmark: `<path d="${BOOKMARK_SVG_PATH}"/>`,
+  folder: `<path d="${FOLDER_SVG_PATH}"/>`,
+};
 
 /**
  * Normalizes a user-entered emoji string: trims and caps codepoint length so a
@@ -946,12 +958,27 @@ function escapeHtml(str) {
  * @param {PinnedItem} pin
  * @returns {string}
  */
-function getTypeLabel(pin) {
+function getTypeLabel(pin, pseudoEntry) {
   if (pin.type === 'collection') {
-    const entry = getPseudoCollectionEntry(pin);
+    const entry = pseudoEntry !== undefined ? pseudoEntry : getPseudoCollectionEntry(pin);
     if (entry) return entry.label;
   }
   return TYPE_LABEL_MAP[pin.type] || 'Playlist';
+}
+
+/**
+ * Returns a collection-type pin's URI category (e.g. "local-files"), or null
+ * for non-pseudo-playlist pins.
+ * @param {PinnedItem} pin
+ * @returns {string|null}
+ */
+function getPseudoCategory(pin) {
+  if (pin.type !== 'collection') return null;
+  try {
+    return Spicetify.URI.fromString(pin.uri).category || null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -960,23 +987,23 @@ function getTypeLabel(pin) {
  * @returns {{localeKey: string, name: string, label: string, icon: string}|null}
  */
 function getPseudoCollectionEntry(pin) {
-  if (pin.type !== 'collection') return null;
-  const uriObj = Spicetify.URI.fromString(pin.uri);
-  return PSEUDO_COLLECTIONS[uriObj.category] || null;
+  const category = getPseudoCategory(pin);
+  return category ? (PSEUDO_COLLECTIONS[category] || null) : null;
 }
 
 /**
  * Renders the artwork placeholder for a pin. Pseudo-playlists (no image URL)
  * get a distinguishing glyph instead of a blank tile.
  * @param {PinnedItem} pin
+ * @param {{icon: string}|null} [pseudoEntry] - precomputed getPseudoCollectionEntry(pin), to avoid re-parsing the URI
  * @returns {string}
  */
-function renderArtPlaceholderHTML(pin) {
-  const entry = getPseudoCollectionEntry(pin);
-  const path = entry && PSEUDO_COLLECTION_ICON_PATHS[entry.icon];
-  if (path) {
+function renderArtPlaceholderHTML(pin, pseudoEntry) {
+  const entry = pseudoEntry !== undefined ? pseudoEntry : getPseudoCollectionEntry(pin);
+  const body = entry && PSEUDO_COLLECTION_ICON_BODY[entry.icon];
+  if (body) {
     return `<div class="ep-item-img ep-item-img--placeholder ep-item-img--pseudo">
-      <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="${path}"></path></svg>
+      <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">${body}</svg>
     </div>`;
   }
   return '<div class="ep-item-img ep-item-img--placeholder"></div>';
@@ -1343,8 +1370,9 @@ function detectViewMode() {
 /**
  * Detects the active entity type filter from sidebar filter chips.
  * When the user selects a filter like "Audiobooks" or "Playlists", only
- * enhanced pins of that type should be shown.
- * @returns {Set<string>|null} Set of allowed pin types, or null if no type filter active
+ * enhanced pins matching that chip should be shown.
+ * @returns {{key: string, matches: (pin: PinnedItem) => boolean}|null} the active chip's
+ *   label (as a stable cache key) and its match predicate, or null if no type filter active
  */
 function getActiveTypeFilter() {
   // Filter chips are Encore LegacyChip components inside the sidebar nav bar,
@@ -1364,7 +1392,7 @@ function getActiveTypeFilter() {
   for (const chip of chips) {
     if (chip.getAttribute('aria-checked') === 'true') {
       const label = (chip.getAttribute('aria-label') || '').toLowerCase();
-      if (FILTER_TYPE_MAP[label]) return FILTER_TYPE_MAP[label];
+      if (FILTER_TYPE_MAP[label]) return { key: label, matches: FILTER_TYPE_MAP[label] };
     }
   }
 
@@ -1378,7 +1406,7 @@ function getActiveTypeFilter() {
   }
 
   if (typeChips.length === 1) {
-    return FILTER_TYPE_MAP[typeChips[0]];
+    return { key: typeChips[0], matches: FILTER_TYPE_MAP[typeChips[0]] };
   }
 
   return null;
@@ -1898,7 +1926,7 @@ function renderPins() {
   // Filter pins based on active sidebar entity type filter
   const activeFilter = getActiveTypeFilter();
   const filteredPins = activeFilter
-    ? pins.filter(pin => activeFilter.has(pin.type))
+    ? pins.filter(pin => activeFilter.matches(pin))
     : pins;
 
   // Sort and truncate
@@ -1917,7 +1945,7 @@ function renderPins() {
   container.id = EP_CONTAINER_ID;
   container.className = `ep-view-${viewMode}`;
   container.dataset.viewMode = viewMode;
-  container.dataset.filterKey = activeFilter ? [...activeFilter].sort().join(',') : '';
+  container.dataset.filterKey = activeFilter ? activeFilter.key : '';
 
   const section = document.createElement('div');
   section.className = 'ep-section';
@@ -1967,7 +1995,8 @@ function renderPins() {
   const clickTimers = {};
 
   displayPins.forEach(pin => {
-    const typeLabel = getTypeLabel(pin);
+    const pseudoEntry = getPseudoCollectionEntry(pin);
+    const typeLabel = getTypeLabel(pin, pseudoEntry);
     const subtitle = pin.owner ? `${typeLabel} \u2022 ${pin.owner}` : typeLabel;
 
     const item = document.createElement('div');
@@ -1981,7 +2010,7 @@ function renderPins() {
       <div class="ep-item-art">
         ${pin.imageUrl
           ? `<img class="ep-item-img" src="${escapeHtml(pin.imageUrl)}" alt="" draggable="false" loading="lazy">`
-          : renderArtPlaceholderHTML(pin)}
+          : renderArtPlaceholderHTML(pin, pseudoEntry)}
         <button class="ep-art-overlay" aria-label="Play">
           <svg viewBox="0 0 24 24" fill="currentColor"><path d="${PLAY_SVG_PATH}"></path></svg>
         </button>
@@ -2431,7 +2460,7 @@ function setupSidebarObserver() {
 
       // Check if sidebar filter changed
       const currentFilter = getActiveTypeFilter();
-      const currentFilterKey = currentFilter ? [...currentFilter].sort().join(',') : '';
+      const currentFilterKey = currentFilter ? currentFilter.key : '';
       const prevFilterKey = epContainer?.dataset.filterKey ?? '';
       const filterChanged = currentFilterKey !== prevFilterKey;
 
