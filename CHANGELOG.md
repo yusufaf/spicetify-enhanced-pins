@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0](https://github.com/yusufaf/spicetify-enhanced-pins/compare/v1.2.0...v1.3.0) (2026-09-04)
+
+
+### Features
+
+* add customizable sidebar section title ([bb2e8bb](https://github.com/yusufaf/spicetify-enhanced-pins/commit/bb2e8bb56f82b9658051b2e9de8be60a27e35424))
+* add version and GitHub issue link to settings modal footer ([d301df0](https://github.com/yusufaf/spicetify-enhanced-pins/commit/d301df0c470115c45cc3bbbafc6bb39bce6e8936))
+
+
+### Bug Fixes
+
+* correctly pin Spotify's auto-generated library entries ([#3](https://github.com/yusufaf/spicetify-enhanced-pins/issues/3)) ([b08ee1f](https://github.com/yusufaf/spicetify-enhanced-pins/commit/b08ee1f848dfd8cea93da975644ef8d7d1238ca2))
+
 ## [1.2.0] - 2026-06-06
 
 ### Added
