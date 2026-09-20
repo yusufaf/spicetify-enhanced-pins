@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "spotify-cdp": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["chrome-devtools-mcp@latest", "--browser-url", "http://127.0.0.1:9222"]
+    }
+  }
+}
