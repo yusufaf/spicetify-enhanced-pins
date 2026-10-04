@@ -1338,8 +1338,8 @@ function detectViewMode() {
   const rootlist = document.querySelector('.main-yourLibraryX-libraryRootlist');
   if (!rootlist) return cachedViewMode;
 
-  const allItems = rootlist.querySelectorAll('li[role="row"]');
-  const items = [...allItems].filter(el => !el.closest('#' + EP_CONTAINER_ID));
+  const allItems = rootlist.querySelectorAll('[role="row"]');
+  const items = [...allItems].filter(el => el.children.length && !el.closest('#' + EP_CONTAINER_ID));
   if (items.length < 2) return cachedViewMode;
 
   const r0 = items[0].getBoundingClientRect();
