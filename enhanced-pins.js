@@ -2125,7 +2125,12 @@ function updateHideStyles() {
 
   const rules = currentPins.map(pin => {
     const escapedUri = CSS.escape(`listrow-title-${pin.uri}`);
-    return `.main-yourLibraryX-libraryRootlist [role="row"]:has(#${escapedUri}), .main-yourLibraryX-listItem:has(#${escapedUri})`;
+    const root = '.main-yourLibraryX-libraryRootlist';
+    return [
+      `${root} [role="row"]:has(#${escapedUri}):not(:has([role="gridcell"] ~ [role="gridcell"]))`,
+      `${root} [role="gridcell"]:not(:only-child):has(#${escapedUri})`,
+      `.main-yourLibraryX-listItem:has(#${escapedUri})`,
+    ].join(', ');
   });
 
   hideStyleElement.textContent = `${rules.join(',\n')} { display: none !important; }`;
