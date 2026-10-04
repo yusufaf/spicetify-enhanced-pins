@@ -34,7 +34,7 @@ const EP_CONTAINER_ID = 'enhanced-pins-container';
 const EP_STYLE_ID = 'ep-main-styles';
 
 /** Sidebar nav bar selector */
-const SEL_NAV_BAR = '.Root__nav-bar';
+const SEL_NAV_BAR = '#Desktop_LeftSidebar_Id, .Root__nav-bar';
 
 /** URI types that can be pinned */
 const PINNABLE_TYPES = new Set([
@@ -1313,7 +1313,7 @@ function findInjectionPoint() {
  */
 function detectViewMode() {
   // Strategy 1: Parse the view mode from the sort/view combobox aria-label
-  const combobox = document.querySelector('.main-yourLibraryX-libraryFilter [role="combobox"]');
+  const combobox = document.querySelector('.main-yourLibraryX-libraryRootlist [role="combobox"], .main-yourLibraryX-libraryFilter [role="combobox"]');
   if (combobox) {
     const label = (combobox.getAttribute('aria-label') || '').toLowerCase();
     if (label.includes('compact') && label.includes('grid')) {
@@ -2125,7 +2125,7 @@ function updateHideStyles() {
 
   const rules = currentPins.map(pin => {
     const escapedUri = CSS.escape(`listrow-title-${pin.uri}`);
-    return `.main-yourLibraryX-listItem:has(#${escapedUri})`;
+    return `.main-yourLibraryX-libraryRootlist [role="row"]:has(#${escapedUri}), .main-yourLibraryX-listItem:has(#${escapedUri})`;
   });
 
   hideStyleElement.textContent = `${rules.join(',\n')} { display: none !important; }`;
