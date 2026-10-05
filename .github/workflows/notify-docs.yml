@@ -1,0 +1,34 @@
+name: notify-docs
+
+# Tells yusufaf/spicetify-site to rebuild when this repo's README, changelog,
+# manifest or root images change on main. The site pulls those files at build time.
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - README.md
+      - CHANGELOG.md
+      - manifest.json
+      - '*.png'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      # The release App token is scoped to this repo by default; ask for the site repo.
+      - uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ vars.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: spicetify-site
+      - name: Trigger docs rebuild
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: gh api "repos/${{ github.repository_owner }}/spicetify-site/dispatches" -f event_type=extension-updated

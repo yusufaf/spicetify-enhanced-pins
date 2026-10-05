@@ -1,5 +1,9 @@
 # Enhanced Pins
 
+<!-- site:skip-start -->
+**Documentation:** https://spicetify.yusufaf.dev/enhanced-pins/
+<!-- site:skip-end -->
+
 Bypass Spotify's 4-pin limit with unlimited enhanced pins in the sidebar.
 
 ![Preview](image.png)
