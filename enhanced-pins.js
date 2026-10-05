@@ -1,7 +1,7 @@
 // NAME: Enhanced Pins
 // AUTHOR: yusufaf
 // x-release-please-start-version
-// VERSION: 1.2.0
+// VERSION: 1.3.0
 // x-release-please-end-version
 // DESCRIPTION: Bypass Spotify's 4-pin limit with unlimited enhanced pins
 
@@ -177,7 +177,7 @@ const EP_EXPORT_SCHEMA_VERSION = 1;
 
 /** Extension version, shown in the settings modal footer. Kept in sync with the VERSION banner by release-please. */
 // x-release-please-start-version
-const EP_VERSION = '1.2.0';
+const EP_VERSION = '1.3.0';
 // x-release-please-end-version
 
 /** GitHub repo slug, used to build the "report an issue" link in the settings modal footer */
