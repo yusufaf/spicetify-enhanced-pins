@@ -1,15 +1,15 @@
 {
   "name": "spicetify-enhanced-pins",
   "version": "1.2.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Enhanced pinning functionality for Spotify playlists, albums, and more",
+  "main": "enhanced-pins.js",
   "scripts": {
     "test": "node --check enhanced-pins.js",
     "prepare": "husky"
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "packageManager": "pnpm@10.24.0",
   "devDependencies": {
     "@commitlint/cli": "^20.5.3",
