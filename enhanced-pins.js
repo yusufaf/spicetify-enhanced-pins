@@ -36,6 +36,20 @@ const EP_STYLE_ID = 'ep-main-styles';
 /** Sidebar nav bar selector */
 const SEL_NAV_BAR = '#Desktop_LeftSidebar_Id, .Root__nav-bar';
 
+/** Library root: Spicetify-mapped class first, unmapped fallback for clients without a CSS map */
+const LIBRARY_ROOTS = ['.main-yourLibraryX-libraryRootlist', '#Desktop_LeftSidebar_Id .YourLibraryX'];
+const SEL_LIBRARY = LIBRARY_ROOTS.join(', ');
+
+/** Scroll content root inside the library (unmapped DOM) */
+const SEL_LIBRARY_SCROLL_CONTENT = '[data-overlayscrollbars-viewport] > div';
+
+/** Library sort/view combobox; its aria-label encodes the view mode */
+const SEL_VIEW_COMBOBOX = [
+  '.main-yourLibraryX-libraryRootlist [role="combobox"]',
+  '.main-yourLibraryX-libraryFilter [role="combobox"]',
+  '#Desktop_LeftSidebar_Id [role="combobox"][aria-controls="sort-and-view-picker"]',
+].join(', ');
+
 /** URI types that can be pinned */
 const PINNABLE_TYPES = new Set([
   'playlist',
@@ -1277,31 +1291,52 @@ function updatePlayingStates() {
  * @returns {{ parent: HTMLElement, reference: Node|null }|null}
  */
 function findInjectionPoint() {
-  const rootlist = document.querySelector('.main-yourLibraryX-libraryRootlist');
-  if (rootlist) {
-    // Strategy 1: After the filter bar inside libraryRootlist
-    const filter = rootlist.querySelector('.main-yourLibraryX-libraryFilter');
-    if (filter && filter.parentElement) {
-      return { parent: filter.parentElement, reference: filter.nextElementSibling };
-    }
+  const rootlist = getLibraryRoot();
+  if (!rootlist) return null;
 
-    // Strategy 2: Before the treegrid/grid element
-    const gridEl = rootlist.querySelector('[role="treegrid"], [role="grid"]');
-    if (gridEl) {
-      let wrapper = gridEl;
-      while (wrapper.parentElement && wrapper.parentElement !== rootlist) {
-        wrapper = wrapper.parentElement;
-      }
-      return { parent: wrapper.parentElement, reference: wrapper };
-    }
+  // Strategy 1: After the filter bar inside libraryRootlist
+  const filter = rootlist.querySelector('.main-yourLibraryX-libraryFilter');
+  if (filter && filter.parentElement) {
+    return { parent: filter.parentElement, reference: filter.nextElementSibling };
   }
 
-  // Strategy 3: Fallback to nav bar
-  const navBar = document.querySelector(SEL_NAV_BAR);
-  if (navBar) {
-    return { parent: navBar, reference: null };
+  // Strategy 2: Before the wrapper holding the treegrid/grid. Stop at the scroll
+  // content root so pins scroll with the library instead of becoming a flex
+  // sibling of the scroll host (which squashes the native list).
+  const gridEl = rootlist.querySelector('[role="treegrid"], [role="grid"]');
+  if (gridEl) {
+    let wrapper = gridEl;
+    while (
+      wrapper.parentElement &&
+      wrapper.parentElement !== rootlist &&
+      !wrapper.parentElement.matches(SEL_LIBRARY_SCROLL_CONTENT)
+    ) {
+      wrapper = wrapper.parentElement;
+    }
+    return { parent: wrapper.parentElement, reference: wrapper };
   }
 
+  // Strategy 3: No grid rendered; append to the scroll content so pins still show
+  const scrollContent = rootlist.querySelector(SEL_LIBRARY_SCROLL_CONTENT);
+  if (scrollContent) {
+    return { parent: scrollContent, reference: null };
+  }
+
+  // No safe spot (e.g. library not mounted yet): skip injection rather than
+  // appending to the sidebar root; the sidebar observer retries on the next mutation.
+  return null;
+}
+
+/**
+ * Returns the library root element, honoring LIBRARY_ROOTS priority order
+ * (a comma-joined querySelector would return whichever comes first in the DOM).
+ * @returns {HTMLElement|null}
+ */
+function getLibraryRoot() {
+  for (const sel of LIBRARY_ROOTS) {
+    const el = document.querySelector(sel);
+    if (el) return el;
+  }
   return null;
 }
 
@@ -1313,7 +1348,7 @@ function findInjectionPoint() {
  */
 function detectViewMode() {
   // Strategy 1: Parse the view mode from the sort/view combobox aria-label
-  const combobox = document.querySelector('.main-yourLibraryX-libraryRootlist [role="combobox"], .main-yourLibraryX-libraryFilter [role="combobox"]');
+  const combobox = document.querySelector(SEL_VIEW_COMBOBOX);
   if (combobox) {
     const label = (combobox.getAttribute('aria-label') || '').toLowerCase();
     if (label.includes('compact') && label.includes('grid')) {
@@ -1335,11 +1370,16 @@ function detectViewMode() {
   }
 
   // Strategy 2: Position-based fallback using native library items
-  const rootlist = document.querySelector('.main-yourLibraryX-libraryRootlist');
+  const rootlist = getLibraryRoot();
   if (!rootlist) return cachedViewMode;
 
+  // Skip virtualization spacer rows (no title element) and our own items
   const allItems = rootlist.querySelectorAll('[role="row"]');
-  const items = [...allItems].filter(el => el.children.length && !el.closest('#' + EP_CONTAINER_ID));
+  const items = [...allItems].filter(el =>
+    el.children.length &&
+    el.querySelector('[id^="listrow-title-"]') &&
+    !el.closest('#' + EP_CONTAINER_ID)
+  );
   if (items.length < 2) return cachedViewMode;
 
   const r0 = items[0].getBoundingClientRect();
@@ -1923,6 +1963,14 @@ function renderPins() {
     return;
   }
 
+  // Resolve before building any DOM: when the library isn't mounted, skip the
+  // rebuild entirely (the sidebar observer retries) but keep hide rules current.
+  const injection = findInjectionPoint();
+  if (!injection) {
+    updateHideStyles();
+    return;
+  }
+
   // Filter pins based on active sidebar entity type filter
   const activeFilter = getActiveTypeFilter();
   const filteredPins = activeFilter
@@ -1980,8 +2028,6 @@ function renderPins() {
   // If no pins match the active filter, show header only (settings gear remains accessible)
   if (filteredPins.length === 0) {
     container.appendChild(section);
-    const injection = findInjectionPoint();
-    if (!injection) return;
     injection.parent.insertBefore(container, injection.reference);
     updateHideStyles();
     return;
@@ -2098,8 +2144,6 @@ function renderPins() {
   section.appendChild(itemsWrapper);
   container.appendChild(section);
 
-  const injection = findInjectionPoint();
-  if (!injection) return;
   injection.parent.insertBefore(container, injection.reference);
 
   updateHideStyles();
@@ -2125,7 +2169,7 @@ function updateHideStyles() {
 
   const rules = currentPins.map(pin => {
     const escapedUri = CSS.escape(`listrow-title-${pin.uri}`);
-    const root = '.main-yourLibraryX-libraryRootlist';
+    const root = `:is(${SEL_LIBRARY})`;
     return [
       `${root} [role="row"]:has(#${escapedUri}):not(:has([role="gridcell"] ~ [role="gridcell"]))`,
       `${root} [role="gridcell"]:not(:only-child):has(#${escapedUri})`,
@@ -2426,11 +2470,13 @@ function setupExternalDropListeners() {
     if (pin) addTracksToPlaylist(pin, trackUris);
   }, true);
 
-  // Monitor body data-dragging-uri-type attribute for visual feedback
+  // Monitor body dragging attribute for visual feedback
+  // (data-dragging-uri-type before Spotify 1.3.4, data-dragging-type after)
+  const dragAttrs = ['data-dragging-uri-type', 'data-dragging-type'];
   const bodyObserver = new MutationObserver(() => {
     const container = document.getElementById(EP_CONTAINER_ID);
     if (!container) return;
-    const isDragging = document.body.hasAttribute('data-dragging-uri-type');
+    const isDragging = dragAttrs.some(attr => document.body.hasAttribute(attr));
     container.querySelectorAll('.ep-item').forEach(item => {
       if (isDragging && isPlaylistPin(item.dataset.uri)) {
         item.classList.add('ep-accepting-drops');
@@ -2439,7 +2485,7 @@ function setupExternalDropListeners() {
       }
     });
   });
-  bodyObserver.observe(document.body, { attributes: true, attributeFilter: ['data-dragging-uri-type'] });
+  bodyObserver.observe(document.body, { attributes: true, attributeFilter: dragAttrs });
 }
 
 //#endregion
@@ -3233,7 +3279,7 @@ function injectStyles() {
     /* ============ Default Grid (2 columns) ============ */
     .ep-view-grid .ep-items {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 4px;
       padding: 0 4px;
     }
@@ -3284,7 +3330,7 @@ function injectStyles() {
     /* ============ Compact Grid (3 columns) ============ */
     .ep-view-compact-grid .ep-items {
       display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 4px;
       padding: 0 4px;
     }
