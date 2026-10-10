@@ -43,6 +43,13 @@ const SEL_LIBRARY = LIBRARY_ROOTS.join(', ');
 /** Scroll content root inside the library (unmapped DOM) */
 const SEL_LIBRARY_SCROLL_CONTENT = '[data-overlayscrollbars-viewport] > div';
 
+/** Library sort/view combobox; its aria-label encodes the view mode */
+const SEL_VIEW_COMBOBOX = [
+  '.main-yourLibraryX-libraryRootlist [role="combobox"]',
+  '.main-yourLibraryX-libraryFilter [role="combobox"]',
+  '#Desktop_LeftSidebar_Id [role="combobox"][aria-controls="sort-and-view-picker"]',
+].join(', ');
+
 /** URI types that can be pinned */
 const PINNABLE_TYPES = new Set([
   'playlist',
@@ -1284,7 +1291,7 @@ function updatePlayingStates() {
  * @returns {{ parent: HTMLElement, reference: Node|null }|null}
  */
 function findInjectionPoint() {
-  const rootlist = document.querySelector(SEL_LIBRARY);
+  const rootlist = getLibraryRoot();
   if (!rootlist) return null;
 
   // Strategy 1: After the filter bar inside libraryRootlist
@@ -1309,8 +1316,27 @@ function findInjectionPoint() {
     return { parent: wrapper.parentElement, reference: wrapper };
   }
 
+  // Strategy 3: No grid rendered; append to the scroll content so pins still show
+  const scrollContent = rootlist.querySelector(SEL_LIBRARY_SCROLL_CONTENT);
+  if (scrollContent) {
+    return { parent: scrollContent, reference: null };
+  }
+
   // No safe spot (e.g. library not mounted yet): skip injection rather than
   // appending to the sidebar root; the sidebar observer retries on the next mutation.
+  return null;
+}
+
+/**
+ * Returns the library root element, honoring LIBRARY_ROOTS priority order
+ * (a comma-joined querySelector would return whichever comes first in the DOM).
+ * @returns {HTMLElement|null}
+ */
+function getLibraryRoot() {
+  for (const sel of LIBRARY_ROOTS) {
+    const el = document.querySelector(sel);
+    if (el) return el;
+  }
   return null;
 }
 
@@ -1322,7 +1348,7 @@ function findInjectionPoint() {
  */
 function detectViewMode() {
   // Strategy 1: Parse the view mode from the sort/view combobox aria-label
-  const combobox = document.querySelector('.main-yourLibraryX-libraryRootlist [role="combobox"], .main-yourLibraryX-libraryFilter [role="combobox"], #Desktop_LeftSidebar_Id [role="combobox"][aria-controls="sort-and-view-picker"]');
+  const combobox = document.querySelector(SEL_VIEW_COMBOBOX);
   if (combobox) {
     const label = (combobox.getAttribute('aria-label') || '').toLowerCase();
     if (label.includes('compact') && label.includes('grid')) {
@@ -1344,7 +1370,7 @@ function detectViewMode() {
   }
 
   // Strategy 2: Position-based fallback using native library items
-  const rootlist = document.querySelector(SEL_LIBRARY);
+  const rootlist = getLibraryRoot();
   if (!rootlist) return cachedViewMode;
 
   // Skip virtualization spacer rows (no title element) and our own items
@@ -1937,6 +1963,14 @@ function renderPins() {
     return;
   }
 
+  // Resolve before building any DOM: when the library isn't mounted, skip the
+  // rebuild entirely (the sidebar observer retries) but keep hide rules current.
+  const injection = findInjectionPoint();
+  if (!injection) {
+    updateHideStyles();
+    return;
+  }
+
   // Filter pins based on active sidebar entity type filter
   const activeFilter = getActiveTypeFilter();
   const filteredPins = activeFilter
@@ -1994,8 +2028,6 @@ function renderPins() {
   // If no pins match the active filter, show header only (settings gear remains accessible)
   if (filteredPins.length === 0) {
     container.appendChild(section);
-    const injection = findInjectionPoint();
-    if (!injection) return;
     injection.parent.insertBefore(container, injection.reference);
     updateHideStyles();
     return;
@@ -2112,8 +2144,6 @@ function renderPins() {
   section.appendChild(itemsWrapper);
   container.appendChild(section);
 
-  const injection = findInjectionPoint();
-  if (!injection) return;
   injection.parent.insertBefore(container, injection.reference);
 
   updateHideStyles();
@@ -2139,11 +2169,10 @@ function updateHideStyles() {
 
   const rules = currentPins.map(pin => {
     const escapedUri = CSS.escape(`listrow-title-${pin.uri}`);
+    const root = `:is(${SEL_LIBRARY})`;
     return [
-      ...LIBRARY_ROOTS.flatMap(root => [
-        `${root} [role="row"]:has(#${escapedUri}):not(:has([role="gridcell"] ~ [role="gridcell"]))`,
-        `${root} [role="gridcell"]:not(:only-child):has(#${escapedUri})`,
-      ]),
+      `${root} [role="row"]:has(#${escapedUri}):not(:has([role="gridcell"] ~ [role="gridcell"]))`,
+      `${root} [role="gridcell"]:not(:only-child):has(#${escapedUri})`,
       `.main-yourLibraryX-listItem:has(#${escapedUri})`,
     ].join(', ');
   });
