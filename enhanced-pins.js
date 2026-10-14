@@ -197,6 +197,10 @@ const EP_VERSION = '1.2.0';
 /** GitHub repo slug, used to build the "report an issue" link in the settings modal footer */
 const EP_GITHUB_REPO = 'yusufaf/spicetify-enhanced-pins';
 
+/** Docs page for this extension and the hub listing the others, linked from the settings modal footer */
+const EP_DOCS_URL = 'https://spicetify.yusufaf.dev/enhanced-pins/';
+const EP_HUB_URL = 'https://spicetify.yusufaf.dev/';
+
 /** Default keyboard shortcut bindings. Format: "Modifier+...+Code" using KeyboardEvent.code for layout independence */
 const EP_DEFAULT_SHORTCUTS = {
   toggleExpand: 'Alt+KeyE',
@@ -753,9 +757,13 @@ function showSettingsModal() {
     </div>
     <div class="ep-settings-footer">
       <span class="ep-settings-version">v${EP_VERSION}</span>
-      <a class="ep-settings-github-link" href="https://github.com/${EP_GITHUB_REPO}/issues/new" target="_blank" rel="noopener noreferrer" title="Report an issue on GitHub">
-        <svg viewBox="0 0 16 16" class="ep-settings-icon"><path d="${GITHUB_SVG_PATH}"/></svg>
-      </a>
+      <div class="ep-settings-footer-links">
+        <a class="ep-settings-footer-link" href="${EP_DOCS_URL}" target="_blank" rel="noopener noreferrer" title="Enhanced Pins documentation">Docs</a>
+        <a class="ep-settings-footer-link" href="${EP_HUB_URL}" target="_blank" rel="noopener noreferrer" title="More Spicetify extensions by yusufaf">More extensions</a>
+        <a class="ep-settings-github-link" href="https://github.com/${EP_GITHUB_REPO}/issues/new" target="_blank" rel="noopener noreferrer" title="Report an issue on GitHub">
+          <svg viewBox="0 0 16 16" class="ep-settings-icon"><path d="${GITHUB_SVG_PATH}"/></svg>
+        </a>
+      </div>
     </div>
   `;
 
@@ -2852,6 +2860,23 @@ function injectStyles() {
     .ep-settings-version {
       color: var(--spice-subtext, #b3b3b3);
       font-size: 0.75rem;
+    }
+
+    .ep-settings-footer-links {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .ep-settings-footer .ep-settings-footer-link {
+      color: var(--spice-subtext, #b3b3b3);
+      font-size: 0.75rem;
+      text-decoration: none;
+    }
+
+    .ep-settings-footer .ep-settings-footer-link:hover {
+      color: var(--spice-text, #fff);
+      text-decoration: underline;
     }
 
     .ep-settings-github-link {
