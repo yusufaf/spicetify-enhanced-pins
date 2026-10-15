@@ -197,9 +197,8 @@ const EP_VERSION = '1.2.0';
 /** GitHub repo slug, used to build the "report an issue" link in the settings modal footer */
 const EP_GITHUB_REPO = 'yusufaf/spicetify-enhanced-pins';
 
-/** Docs page for this extension and the hub listing the others, linked from the settings modal footer */
-const EP_DOCS_URL = 'https://spicetify.yusufaf.dev/enhanced-pins/';
 const EP_HUB_URL = 'https://spicetify.yusufaf.dev/';
+const EP_DOCS_URL = `${EP_HUB_URL}enhanced-pins/`;
 
 /** Default keyboard shortcut bindings. Format: "Modifier+...+Code" using KeyboardEvent.code for layout independence */
 const EP_DEFAULT_SHORTCUTS = {
@@ -758,10 +757,10 @@ function showSettingsModal() {
     <div class="ep-settings-footer">
       <span class="ep-settings-version">v${EP_VERSION}</span>
       <div class="ep-settings-footer-links">
-        <a class="ep-settings-footer-link" href="${EP_DOCS_URL}" target="_blank" rel="noopener noreferrer" title="Enhanced Pins documentation">Docs</a>
-        <a class="ep-settings-footer-link" href="${EP_HUB_URL}" target="_blank" rel="noopener noreferrer" title="More Spicetify extensions by yusufaf">More extensions</a>
-        <a class="ep-settings-github-link" href="https://github.com/${EP_GITHUB_REPO}/issues/new" target="_blank" rel="noopener noreferrer" title="Report an issue on GitHub">
-          <svg viewBox="0 0 16 16" class="ep-settings-icon"><path d="${GITHUB_SVG_PATH}"/></svg>
+        <a href="${EP_DOCS_URL}" target="_blank" rel="noopener noreferrer" title="Enhanced Pins documentation">Docs</a>
+        <a href="${EP_HUB_URL}" target="_blank" rel="noopener noreferrer" title="More Spicetify extensions by yusufaf">More extensions</a>
+        <a class="ep-settings-github-link" href="https://github.com/${EP_GITHUB_REPO}/issues/new" target="_blank" rel="noopener noreferrer" title="Report an issue on GitHub" aria-label="Report an issue on GitHub">
+          <svg viewBox="0 0 16 16" class="ep-settings-icon" aria-hidden="true"><path d="${GITHUB_SVG_PATH}"/></svg>
         </a>
       </div>
     </div>
@@ -2854,7 +2853,8 @@ function injectStyles() {
       align-items: center;
       justify-content: space-between;
       border-top: 1px solid hsla(0, 0%, 100%, 0.1);
-      background: var(--background-elevated-base, var(--spice-card, #282828));
+      /* Matches Spicetify's popup container, so the sticky footer blends in under any theme */
+      background: var(--spice-player);
     }
 
     .ep-settings-version {
@@ -2866,33 +2866,33 @@ function injectStyles() {
       display: inline-flex;
       align-items: center;
       gap: 12px;
+      flex-shrink: 0;
+      white-space: nowrap;
     }
 
-    .ep-settings-footer .ep-settings-footer-link {
-      color: var(--spice-subtext, #b3b3b3);
+    .ep-settings-footer a[href] {
+      display: inline-flex;
+      align-items: center;
+      color: var(--spice-subtext);
       font-size: 0.75rem;
       text-decoration: none;
     }
 
-    .ep-settings-footer .ep-settings-footer-link:hover {
-      color: var(--spice-text, #fff);
+    .ep-settings-footer a[href]:hover {
+      color: var(--spice-text);
       text-decoration: underline;
     }
 
-    .ep-settings-github-link {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      color: var(--spice-subtext, #b3b3b3);
-    }
-
-    .ep-settings-github-link:hover {
-      color: var(--spice-text, #fff);
+    .ep-settings-footer a[href]:focus-visible {
+      outline: 2px solid var(--spice-text);
+      outline-offset: 2px;
+      border-radius: 2px;
     }
 
     .ep-settings-github-link .ep-settings-icon {
       width: 16px;
       height: 16px;
+      fill: currentColor;
     }
 
     .ep-settings-title {
