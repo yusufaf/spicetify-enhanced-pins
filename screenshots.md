@@ -23,8 +23,14 @@ node shoot.mjs verify ".ep-item" --min 10 --within ".ep-section"
 `screenshots/fixtures/pins-10.json`: 10 public pins (Spotify editorial playlists and
 well-known albums). Records mirror what the "Enhanced Pin" context-menu action writes:
 `{ uri, type, name, imageUrl, owner, pinnedAt }`, with metadata from the same lookups as
-`fetchItemMetadata`. `enhanced-pins-config` is `null`, so the shot uses the default config.
-Never seed from the developer's own pins.
+`fetchItemMetadata`. The four editorial playlists carry `owner: "Spotify"`: with an empty
+owner, `refreshStaleMetadata` refetches and re-renders them right after boot, mid-capture.
+`enhanced-pins-config` is `null`, so the shot uses the default config. Never seed from the
+developer's own pins.
+
+`image.png` is a copy of `preview.png`. Marketplace caches each card's image URL, so installs
+made while the manifest pointed at `image.png` keep loading that path. Update both files
+together.
 
 ## Capture session
 
