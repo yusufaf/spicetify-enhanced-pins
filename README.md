@@ -24,16 +24,15 @@ Bypass Spotify's 4-pin limit with unlimited enhanced pins in the sidebar.
 
 Enhanced Pins stores pin data in `localStorage` and renders a custom section at the top of the left sidebar. Items are pinned via the right-click context menu on any playlist, album, podcast, or audiobook in Spotify. The extension uses Spicetify Platform APIs (`PlayerAPI`, `PlaylistAPI`, `RootlistAPI`, `LibraryAPI`, etc.) to provide full playback and management controls.
 
-## Install
+## Installation
 
-Requires [Spicetify](https://spicetify.app/docs/getting-started), installed and applied at least once.
+Requires [Spicetify](https://spicetify.app/docs/getting-started), installed and applied at least once. The Marketplace route also needs the [Spicetify Marketplace](https://spicetify.app/docs/customization/marketplace) custom app.
 
 ### From Spicetify Marketplace
 
-1. In Spotify, open [Marketplace](https://github.com/spicetify/marketplace) (the shopping-cart icon at the top left) and stay on the **Extensions** tab.
-2. Type `Enhanced Pins` into **Search Extensions…**.
-3. If no card shows up, click **Load more** below the results until it does. Marketplace only searches the extensions it has already loaded, 100 repositories at a time, so this one usually isn't there on the first try. Changing **Sort by** doesn't help, since it only reorders what's loaded.
-4. Hover the **Enhanced Pins** card, click its download button, then click **Reload now**.
+1. In Spotify, open **Marketplace** (the shopping-cart icon at the top left) and stay on the **Extensions** tab.
+2. Search for `Enhanced Pins`. If it doesn't show up, click **Load more** (» at the bottom of the list) until it does. Marketplace loads extensions in batches and only searches the ones it has loaded.
+3. Hover the **Enhanced Pins** card, click its download button, then click **Reload now**.
 
 ### Manually
 
@@ -85,9 +84,8 @@ Click the gear icon in the Enhanced Pins section header to open settings.
 ## Troubleshooting
 
 **Extension not appearing:**
-- Verify `enhanced-pins.js` is in your Spicetify Extensions directory
-- Check `spicetify config` shows `enhanced-pins.js` in extensions
-- Run `spicetify apply` again
+- Installed from Marketplace: it won't be in your Extensions folder or in `spicetify config extensions`, because Marketplace loads it itself. Check that it's listed on Marketplace's **Installed** tab, then restart Spotify.
+- Installed manually: verify `enhanced-pins.js` is in your Spicetify Extensions directory, check that `spicetify config extensions` lists it, and run `spicetify apply` again.
 
 **Console errors:**
 - Open DevTools: `Ctrl+Shift+J` (Windows) / `Cmd+Option+J` (macOS)
