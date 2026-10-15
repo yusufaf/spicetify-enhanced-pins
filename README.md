@@ -6,7 +6,7 @@
 
 Bypass Spotify's 4-pin limit with unlimited enhanced pins in the sidebar.
 
-![Enhanced Pins section at the top of the Spotify sidebar, holding ten pinned playlists and albums](preview.png)
+![Enhanced Pins section at the top of the Spotify sidebar, showing the first six of ten pinned playlists and albums](preview.png)
 
 ## Features
 
