@@ -6,7 +6,7 @@
 
 Bypass Spotify's 4-pin limit with unlimited enhanced pins in the sidebar.
 
-![Preview](image.png)
+![Enhanced Pins section at the top of the Spotify sidebar, holding ten pinned playlists and albums](preview.png)
 
 ## Features
 
@@ -26,36 +26,27 @@ Enhanced Pins stores pin data in `localStorage` and renders a custom section at 
 
 ## Installation
 
-### Prerequisites
+Requires [Spicetify](https://spicetify.app/docs/getting-started), installed and applied at least once. The Marketplace route also needs the [Spicetify Marketplace](https://spicetify.app/docs/customization/marketplace) custom app.
 
-[Spicetify](https://spicetify.app/) must be installed and working.
+### From Spicetify Marketplace
 
-### Steps
+1. In Spotify, open **Marketplace** (the shopping-cart icon at the top left) and stay on the **Extensions** tab.
+2. Search for `Enhanced Pins`. If it doesn't show up, click **Load more** (» at the bottom of the list) until it does. Marketplace loads extensions in batches and only searches the ones it has loaded.
+3. Hover the **Enhanced Pins** card, click its download button, then click **Reload now**.
 
-1. Clone or download this repository:
-   ```bash
-   git clone https://github.com/yusufaf/spicetify-enhanced-pins.git
-   ```
+### Manually
 
-2. Copy the extension file to your Spicetify extensions folder:
+1. Download [`enhanced-pins.js`](https://raw.githubusercontent.com/yusufaf/spicetify-enhanced-pins/main/enhanced-pins.js) (right-click → **Save link as…**) into your Spicetify `Extensions` folder:
+   - Windows: `%APPDATA%\spicetify\Extensions`
+   - macOS / Linux: `~/.config/spicetify/Extensions`
+2. Enable it and apply:
 
-   **Windows:**
-   ```bash
-   copy spicetify-enhanced-pins\enhanced-pins.js "%APPDATA%\spicetify\Extensions\enhanced-pins.js"
-   ```
-
-   **macOS/Linux:**
-   ```bash
-   cp spicetify-enhanced-pins/enhanced-pins.js ~/.config/spicetify/Extensions/enhanced-pins.js
-   ```
-
-3. Enable the extension:
    ```bash
    spicetify config extensions enhanced-pins.js
    spicetify apply
    ```
 
-4. Reload Spotify - enhanced pins section appears at the top of the left sidebar.
+The **Enhanced Pins** section appears at the top of the left sidebar.
 
 ## Usage
 
@@ -93,9 +84,8 @@ Click the gear icon in the Enhanced Pins section header to open settings.
 ## Troubleshooting
 
 **Extension not appearing:**
-- Verify `enhanced-pins.js` is in your Spicetify Extensions directory
-- Check `spicetify config` shows `enhanced-pins.js` in extensions
-- Run `spicetify apply` again
+- Installed from Marketplace: it won't be in your Extensions folder or in `spicetify config extensions`, because Marketplace loads it itself. Check that it's listed on Marketplace's **Installed** tab, then restart Spotify.
+- Installed manually: verify `enhanced-pins.js` is in your Spicetify Extensions directory, check that `spicetify config extensions` lists it, and run `spicetify apply` again.
 
 **Console errors:**
 - Open DevTools: `Ctrl+Shift+J` (Windows) / `Cmd+Option+J` (macOS)
