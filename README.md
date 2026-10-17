@@ -4,7 +4,7 @@
 **Documentation:** https://spicetify.yusufaf.dev/enhanced-pins/
 <!-- site:skip-end -->
 
-Pin as many playlists, albums, podcasts and audiobooks as you want, in their own section at the top of Spotify's sidebar.
+Pin as many playlists, albums, podcasts and audiobooks as you want, plus Liked Songs, Your Episodes and Local Files, in their own section at the top of Spotify's sidebar.
 
 Spotify's own pins top out at 20 (up from 4 since July 2026), and they sit inside the library list. Enhanced Pins has no cap, can keep pinned items out of the library list, and adds sorting, icons, shortcuts and backup.
 
@@ -14,13 +14,13 @@ Spotify's own pins top out at 20 (up from 4 since July 2026), and they sit insid
 
 - **Unlimited Pins**: Pin as many playlists, albums, podcasts, and audiobooks as you want
 - **Sorting**: Keep your own order (drag and drop, or Move to top/bottom), or sort alphabetically, by type, or by most recently pinned
-- **Show More / Show Less**: Set a maximum number of visible pins and expand the rest on demand
-- **Library Deduplication**: Hides pinned items from the native library list so nothing shows up twice
+- **Show More / Show Less**: Set a maximum number of visible pins; the rest sit behind an "N more" button
+- **Library Deduplication**: Hides pinned items from the native library list, so they don't show up twice (on by default)
 - **Pin Icons**: Mark pins with a preset icon or any emoji, for all pins or per pin
 - **Full Context Menu**: Right-click any enhanced pin for Play, Shuffle, Add to Queue, Start a Jam, Go to Radio, Edit, Delete, Download, and more
 - **Smart Ownership Detection**: Edit/Delete/Visibility options only appear for playlists you own
-- **Backup and Restore**: Export your pins and settings to JSON, and import them on another computer
-- **Keyboard Shortcuts**: Optional, rebindable shortcuts to expand the list, open settings, or jump to the first pin; arrow keys and Enter/Space work inside the list
+- **Backup and Restore**: Export your pins and settings to JSON, and import them on another computer (an import replaces the pins and settings already there)
+- **Keyboard Shortcuts**: Optional, rebindable shortcuts to expand the list, open settings, or focus the first pin. Enter or Space opens a focused pin, and arrow keys move through a pin's right-click menu
 - **Native Integration**: Follows your library's list, compact or grid view and matches Spotify's sidebar look, including artwork, subtitles, and active-item highlighting
 - **Theme-Agnostic**: Adapts to any Spicetify theme via CSS variables
 - **Lightweight**: Single file, no dependencies, no build step
@@ -55,9 +55,9 @@ The **Enhanced Pins** section appears at the top of the left sidebar.
 
 ## Usage
 
-1. **Pin an item**: Right-click any playlist, album, podcast, or audiobook in Spotify's library and select "Enhanced Pin"
+1. **Pin an item**: Right-click any playlist, album, podcast, or audiobook (or Liked Songs, Your Episodes, Local Files) in Spotify's library and select "Enhanced Pin"
 2. **Navigate**: Click a pin to open it, double-click to start playback
-3. **Reorder**: Drag and drop pins to rearrange
+3. **Reorder**: Drag and drop pins to rearrange (with **Sort by** set to Custom, the default)
 4. **Context menu**: Right-click an enhanced pin for full playback/management options
 5. **Unpin**: Right-click an enhanced pin and select "Enhanced Unpin"
 
@@ -69,15 +69,15 @@ The **Enhanced Pins** section appears at the top of the left sidebar.
 | Shuffle Play | Start shuffled playback |
 | Add to Queue | Queue all tracks |
 | Start a Jam | Start a Spotify Jam session |
-| Go to Radio | Open radio based on the item |
+| Go to … Radio | Open radio based on the item, e.g. Go to Album Radio |
 | Edit details | Edit playlist name/description (owned playlists) |
 | Delete | Delete playlist (owned playlists) |
 | Download | Toggle offline download |
 | Make private/public | Toggle playlist visibility (owned playlists) |
-| Pin playlist | Add to Spotify's native pins |
+| Pin playlist | Add to Spotify's native pins (labelled "Pin playlist" for every type) |
 | Move to top / Move to bottom | Reorder (Custom sort only) |
-| Change icon | Set this pin's icon |
 | Enhanced Unpin | Remove from enhanced pins |
+| Change icon | Set this pin's icon |
 | Copy Link | Copy shareable URL |
 | Copy Spotify URI | Copy internal URI |
 
@@ -88,11 +88,11 @@ Click the gear icon in the Enhanced Pins section header, or choose **Enhanced Pi
 - **Hide pinned items from library list**: Avoids duplicates in the native library list (default: on)
 - **Confirm before unpinning**: Ask before removing a pin (default: off)
 - **Sort by**: Custom (manual), Alphabetical, Type, or Recently pinned (default: Custom)
-- **Max visible pins**: Show this many pins and collapse the rest behind "Show more" (default: 0, which shows all)
+- **Max visible pins**: Show this many pins and collapse the rest behind an "N more" button (default: 0, which shows all)
 - **Title**: Show or hide the section title, and change its text, font size and color
 - **Pin Icon**: The default icon for pins without their own
 - **Keyboard shortcuts**: Off by default; each binding can be recorded or cleared
-- **Data**: Export pins and settings to JSON, or import them from a file
+- **Data**: Export pins and settings to JSON, or import them from a file. Importing replaces your current pins and settings, then reloads Spotify
 
 Pins and settings are stored in Spotify's local storage on this computer, so they don't sync to other devices. Use Export and Import to move them.
 
