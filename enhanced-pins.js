@@ -3,7 +3,7 @@
 // x-release-please-start-version
 // VERSION: 1.2.0
 // x-release-please-end-version
-// DESCRIPTION: Bypass Spotify's 4-pin limit with unlimited enhanced pins
+// DESCRIPTION: Unlimited pins in their own sidebar section, with sorting, icons, and backup
 
 (function () {
 'use strict';
