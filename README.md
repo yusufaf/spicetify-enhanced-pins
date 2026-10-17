@@ -4,19 +4,24 @@
 **Documentation:** https://spicetify.yusufaf.dev/enhanced-pins/
 <!-- site:skip-end -->
 
-Bypass Spotify's 4-pin limit with unlimited enhanced pins in the sidebar.
+Pin as many playlists, albums, podcasts and audiobooks as you want, in their own section at the top of Spotify's sidebar.
+
+Spotify's own pins top out at 20 (up from 4 since July 2026), and they sit inside the library list. Enhanced Pins has no cap, can keep pinned items out of the library list, and adds sorting, icons, shortcuts and backup.
 
 ![Enhanced Pins section at the top of the Spotify sidebar, showing the first six of ten pinned playlists and albums](preview.png)
 
 ## Features
 
 - **Unlimited Pins**: Pin as many playlists, albums, podcasts, and audiobooks as you want
-- **Drag & Drop Reordering**: Rearrange your enhanced pins by dragging
+- **Sorting**: Keep your own order (drag and drop, or Move to top/bottom), or sort alphabetically, by type, or by most recently pinned
+- **Show More / Show Less**: Set a maximum number of visible pins and expand the rest on demand
+- **Library Deduplication**: Hides pinned items from the native library list so nothing shows up twice
+- **Pin Icons**: Mark pins with a preset icon or any emoji, for all pins or per pin
 - **Full Context Menu**: Right-click any enhanced pin for Play, Shuffle, Add to Queue, Start a Jam, Go to Radio, Edit, Delete, Download, and more
 - **Smart Ownership Detection**: Edit/Delete/Visibility options only appear for playlists you own
-- **Library Deduplication**: Automatically hides pinned items from the native library list to reduce clutter
-- **Keyboard Accessible**: Navigate pins with arrow keys, activate with Enter/Space
-- **Native Integration**: Matches Spotify's sidebar look and feel, including artwork, subtitles, and active-item highlighting
+- **Backup and Restore**: Export your pins and settings to JSON, and import them on another computer
+- **Keyboard Shortcuts**: Optional, rebindable shortcuts to expand the list, open settings, or jump to the first pin; arrow keys and Enter/Space work inside the list
+- **Native Integration**: Follows your library's list, compact or grid view and matches Spotify's sidebar look, including artwork, subtitles, and active-item highlighting
 - **Theme-Agnostic**: Adapts to any Spicetify theme via CSS variables
 - **Lightweight**: Single file, no dependencies, no build step
 
@@ -70,16 +75,26 @@ The **Enhanced Pins** section appears at the top of the left sidebar.
 | Download | Toggle offline download |
 | Make private/public | Toggle playlist visibility (owned playlists) |
 | Pin playlist | Add to Spotify's native pins |
+| Move to top / Move to bottom | Reorder (Custom sort only) |
+| Change icon | Set this pin's icon |
 | Enhanced Unpin | Remove from enhanced pins |
 | Copy Link | Copy shareable URL |
 | Copy Spotify URI | Copy internal URI |
 
 ## Settings
 
-Click the gear icon in the Enhanced Pins section header to open settings.
+Click the gear icon in the Enhanced Pins section header, or choose **Enhanced Pins** in Spotify's profile menu (useful when the library sidebar is hidden).
 
-- **Hide from library**: When enabled, pinned items are hidden from the native library list to avoid duplicates (default: on)
-- **Confirm unpin**: Show a confirmation dialog before unpinning (default: off)
+- **Hide pinned items from library list**: Avoids duplicates in the native library list (default: on)
+- **Confirm before unpinning**: Ask before removing a pin (default: off)
+- **Sort by**: Custom (manual), Alphabetical, Type, or Recently pinned (default: Custom)
+- **Max visible pins**: Show this many pins and collapse the rest behind "Show more" (default: 0, which shows all)
+- **Title**: Show or hide the section title, and change its text, font size and color
+- **Pin Icon**: The default icon for pins without their own
+- **Keyboard shortcuts**: Off by default; each binding can be recorded or cleared
+- **Data**: Export pins and settings to JSON, or import them from a file
+
+Pins and settings are stored in Spotify's local storage on this computer, so they don't sync to other devices. Use Export and Import to move them.
 
 ## Troubleshooting
 
