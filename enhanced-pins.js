@@ -3509,6 +3509,15 @@ function setupShortcuts() {
   Spicetify.Player.addEventListener('onplaypause', updatePlayingStates);
 
   console.log('[Enhanced Pins] Initialized');
+
+  (window.__spicetifyHealth ??= {})['enhanced-pins'] = () => ({
+    ready: true,
+    anchors: {
+      section: document.querySelectorAll(`#${EP_CONTAINER_ID}`).length,
+      pins: document.querySelectorAll(`#${EP_CONTAINER_ID} .ep-item`).length,
+    },
+    errors: [],
+  });
 })();
 
 //#endregion
