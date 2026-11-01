@@ -9,11 +9,11 @@
 'use strict';
 
 // Marketplace and the Extensions folder can both load this file; only the first copy runs.
-// Node (unit tests) has no window, and needs the exports at the bottom.
-if (typeof window !== "undefined") {
-  if (window.__enhancedPinsActive) return;
-  window.__enhancedPinsActive = true;
+if (window.__enhancedPinsActive) {
+  console.info('[Enhanced Pins] Another copy is already running; skipping this one.');
+  return;
 }
+window.__enhancedPinsActive = true;
 
 //#region Type Definitions
 
