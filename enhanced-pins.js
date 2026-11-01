@@ -8,6 +8,13 @@
 (function () {
 'use strict';
 
+// Marketplace and the Extensions folder can both load this file; only the first copy runs.
+if (window.__enhancedPinsActive) {
+  console.info('[Enhanced Pins] Another copy is already running; skipping this one.');
+  return;
+}
+window.__enhancedPinsActive = true;
+
 //#region Type Definitions
 
 /**
